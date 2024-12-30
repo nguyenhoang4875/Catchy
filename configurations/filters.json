@@ -1,0 +1,16 @@
+[
+    {
+        "id": 0,
+        "name": "HOME",
+        "processName": "com.webos.app.home",
+        "enabled": true,
+        "color": "#91bad3"
+    },
+    {
+        "id": 1,
+        "name": "HCC",
+        "processName": "com.webos.service.hccmanager",
+        "enabled": false,
+        "color": "#affae4"
+    }
+]

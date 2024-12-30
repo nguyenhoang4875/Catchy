@@ -1,0 +1,11 @@
+<RCC>
+    <qresource prefix="/">
+        <file>assets/fonts/ConcertOne-Regular.ttf</file>
+        <file>qmls/LogViewTable.qml</file>
+        <file>qmls/LeftToolPanel.qml</file>
+        <file>assets/images/bookmark_icon.png</file>
+        <file>assets/images/filter_icon.png</file>
+        <file>assets/images/add_icon.png</file>
+        <file>qmls/LoadingScreen.qml</file>
+    </qresource>
+</RCC>

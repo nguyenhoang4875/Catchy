@@ -1,0 +1,9 @@
+[
+    {
+        "id": 0,
+        "name": "HOME Yellow",
+        "processName": "com.webos.app.home",
+        "enabled": true,
+        "color": "#1ac685"
+    }
+]

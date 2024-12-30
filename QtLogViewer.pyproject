@@ -1,0 +1,16 @@
+{
+    "files": [
+        "main.py",
+        "qmls/main.qml",
+        "qmls/LogViewTable.qml",
+        "components/__init__.py",
+        "components/_LogViewModel.py",
+        "assets/images/add_filter.png",
+        "resources.qrc",
+        "components/_SortFilterProxyModel.py",
+        "components/_FilterLog.py",
+        "components/_Controller.py",
+        "components/_Worker.py",
+        "components/_SearchLog.py"
+    ]
+}
