@@ -113,6 +113,9 @@ class FilterLog(QObject):
                 self._colors[processName] = color
 
     def refreshRegex(self):
+        if (len(self._filteredStringList) == 0):
+            self.filteredRegex = ""
+            return
         self.filteredRegex = "|".join(self._filteredStringList)
 
     def loadedFilters(self):

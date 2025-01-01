@@ -7,6 +7,11 @@ import com.mycompany.qmlcomponents 1.0
 
 Item {
     id: root
+    enum TableType {
+        ViewTable,
+        SearchResultsTable
+    }
+    property var tableType
     property alias filterProxyModel: filterProxyModel
     property bool showTable: true
     property bool highlight: false
@@ -16,6 +21,28 @@ Item {
     property alias logview: logView
     property int lastColSelected: -1
     property int firstColSelected: logHeaderModel.count
+    property var highlightLineNum: controller.highlightLineNum
+    onHighlightLineNumChanged: {
+        if (root.tableType === LogViewTable.TableType.ViewTable) {
+            let rowIdx = filterProxyModel.rowLineNum(highlightLineNum)
+            logview.positionViewAtRow(rowIdx, TableView.AlignCenter)
+            // let item = logview.itemAtIndex(logview.index(rowIdx, 0))
+            // item.highlight()
+            delayTimer.restart()
+        }
+    }
+
+    Timer {
+        id: delayTimer
+        interval: 300
+        onTriggered: {
+            let rowIdx = filterProxyModel.rowLineNum(highlightLineNum)
+            for (var i = 0; i < logHeaderModel.count; i++) {
+                let item = logview.itemAtIndex(logview.index(rowIdx, i))
+                item.highlight()
+            }
+        }
+    }
 
     ListModel {
         id: logHeaderModel
@@ -116,6 +143,10 @@ Item {
             property bool isLastColumn: column === header.count - 1
             property int lineNum: lineNumber
 
+            function highlight() {
+                highlightAnimation.start()
+            }
+
             onSelectedChanged: {
                 if (selected) {
                     root.lastColSelected = Math.max(root.lastColSelected, column)
@@ -125,6 +156,12 @@ Item {
 
             TapHandler {
                 onTapped: controller.showLogDetails(lineNumber)
+                onDoubleTapped: {
+                    if (root.tableType === LogViewTable.TableType.SearchResultsTable) {
+                        console.log("Double clicked on search result line number: " + lineNumber)
+                        controller.highlightLineNum = lineNumber
+                    }
+                }
             }
 
             Text {
@@ -142,7 +179,7 @@ Item {
                 anchors.leftMargin: 5
                 anchors.rightMargin: 5
                 textFormat: TextEdit.RichText
-                z: 2
+                z: 10
                 // readOnly: true
             }
 
@@ -162,6 +199,13 @@ Item {
                 z: 0
                 opacity: 0.9
                 color: "#323553"
+            }
+
+            HighlightAnimation {
+                id: highlightAnimation
+                anchors.fill: parent
+                visible: root.tableType === LogViewTable.TableType.ViewTable
+                z: 1
             }
         }
     }

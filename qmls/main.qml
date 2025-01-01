@@ -3,7 +3,6 @@ import QtQuick
 import QtQuick.Controls 2.15
 import Qt.labs.qmlmodels 1.0
 import QtQuick.Controls.Universal 2.12
-
 import QtQuick.Layouts 1.13
 import "."
 ApplicationWindow {
@@ -20,6 +19,7 @@ ApplicationWindow {
 
         FontLoader { id: concertOne; source: "./../assets/fonts/ConcertOne-Regular.ttf" }
         FontLoader { id: muktaVaani; source: "./../assets/fonts/MuktaVaani-SemiBold.ttf" }
+        FontLoader { id: moiraiOne; source: "./../assets/fonts/MoiraiOne-Regular.ttf" }
 
         Rectangle {
             id: mainBg
@@ -166,6 +166,20 @@ ApplicationWindow {
                 }
             }
 
+            Text {
+                id: author
+                anchors.right: parent.right
+                verticalAlignment: Text.AlignBottom
+                height: 30
+                width: 120
+                text: "by @phi.nguyen"
+                font.pixelSize: 14
+                font.family: moiraiOne.font.family
+                color: "#ffffff"
+                antialiasing: true
+                font.bold: true
+            }
+
             Rectangle {
                 id: menuBarBg
                 anchors.fill: parent
@@ -205,6 +219,7 @@ ApplicationWindow {
                         LogViewTable {
                             id: logviewTable
                             anchors.fill: parent
+                            tableType: LogViewTable.TableType.ViewTable
                             filterProxyModel.sourceModel: logModel
                             filterProxyModel.filterKeyColumn: 3
                             filterProxyModel.filterRegularExpression: filterLog.filteredRegex
@@ -247,12 +262,13 @@ ApplicationWindow {
 
             Item {
                 id: bottomView
-                SplitView.preferredHeight: verSplit.height * 0.28
+                SplitView.fillHeight: true
                 SplitView.fillWidth: true
 
                 LogViewTable {
                     id: searchResultTable
                     anchors.fill: parent
+                    tableType: LogViewTable.TableType.SearchResultsTable
                     showTable: searchLog.showSearchResults
                     highlight: true
                     filterProxyModel.sourceModel: logviewTable.filterProxyModel
@@ -267,16 +283,49 @@ ApplicationWindow {
 
             Item {
                 id: detailView
-                SplitView.fillHeight: true
                 SplitView.fillWidth: true
+                SplitView.preferredHeight: verSplit.height * 0.05
+                SplitView.minimumHeight: 50
+
+                Rectangle {
+                    id: topLine
+                    width: parent.width
+                    anchors.top: parent.top
+                    height: 1
+                    color: Qt.rgba(232, 188, 245, 0.43)
+                    z: 1
+                }
+
+                Rectangle {
+                    id: detailViewBg
+                    anchors.fill: parent
+                    color: "#303030"
+                    z: -1
+                }
+
+
+                Image {
+                    id: detailIcon
+                    width: 25
+                    height: 25
+                    anchors.left: parent.left
+                    anchors.leftMargin: 5
+                    anchors.right: detailTextArea.left
+                    anchors.rightMargin: 5
+                    source: "./../assets/images/detail_icon.png"
+                    anchors.verticalCenter: parent.verticalCenter
+                }
 
                 TextArea {
                     id: detailTextArea
                     anchors.fill: parent
+                    anchors.left: detailIcon.right
+                    anchors.leftMargin: 35
                     text: controller.hightlightSearchResults(controller.detailsText)
                     wrapMode: Text.WordWrap
                     readOnly: true
                     font.family: concertOne.font.family
+                    verticalAlignment: Text.AlignVCenter
                     font.pixelSize: 14
                     color: "#ffffff"
                     textFormat: Text.RichText

@@ -1,0 +1,19 @@
+import QtQuick
+import QtQuick.Controls
+// import QtQuick.Controls.Basic
+
+Button {
+    id: root
+    signal checkStateChanged(bool checked)
+    icon.source: checked ? "./../assets/images/check_icon.png" : "./../assets/images/uncheck_icon.png"
+    icon.width: 20
+    icon.height: 20
+    padding: 0
+    background: Rectangle {
+        color: "transparent"
+    }
+    onClicked: {
+        checked = !checked
+        checkStateChanged(checked)
+    }
+}

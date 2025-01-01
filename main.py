@@ -6,6 +6,7 @@ from pathlib import Path
 from PySide6.QtGui import QGuiApplication, QClipboard
 from PySide6.QtQml import QQmlApplicationEngine, qmlRegisterType
 from PySide6.QtWidgets import QApplication
+from PySide6.QtQuickControls2 import QQuickStyle
 
 from components import Defines
 from components._LogViewModel import LogModel
@@ -15,6 +16,7 @@ from components._Controller import Controller
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
+    QQuickStyle.setStyle("Fusion")
     engine = QQmlApplicationEngine()
     engine.addImportPath(Path(__file__).parent)
     qml_file = Path(__file__).resolve().parent / "qmls/main.qml"

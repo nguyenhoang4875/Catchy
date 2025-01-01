@@ -4,13 +4,13 @@
         "name": "HOME",
         "processName": "com.webos.app.home",
         "enabled": true,
-        "color": "#91bad3"
+        "color": "#d5b6b6"
     },
     {
         "id": 1,
-        "name": "HCC",
-        "processName": "com.webos.service.hccmanager",
-        "enabled": false,
-        "color": "#affae4"
+        "name": "SDX",
+        "processName": "sdx",
+        "enabled": true,
+        "color": "#0592bd"
     }
 ]

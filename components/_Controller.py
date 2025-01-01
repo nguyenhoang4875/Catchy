@@ -16,6 +16,7 @@ class Controller(QObject):
     logViewReadyChanged      = Signal()
     loadLogFileCompleted     = Signal()
     detailsTextChanged       = Signal()
+    highlightLineNumChanged  = Signal()
     def __init__(self, parent=None):
         super().__init__(parent)
         self.filterLog          = FilterLog()
@@ -33,6 +34,7 @@ class Controller(QObject):
         self._originalFilters = self.filterLog.originalFilters()
         self._logDict           = {}
         self._detailsText       = ""
+        self._highlightLineNum  = -1
         pass
 
     @Property(bool, notify=showLoadingScreenChanged)
@@ -62,6 +64,15 @@ class Controller(QObject):
         self._detailsText = val
         self.detailsTextChanged.emit()
 
+    @Property(int, notify=highlightLineNumChanged)
+    def highlightLineNum(self):
+        return self._highlightLineNum
+    
+    @highlightLineNum.setter
+    def highlightLineNum(self, val):
+        self._highlightLineNum = val
+        self.highlightLineNumChanged.emit()
+
     @Slot(int)
     def showLogDetails(self, line):
         print("showLogDetails: ", line)
@@ -71,7 +82,6 @@ class Controller(QObject):
         for key in logline.keys():
             if key in keys:
                 strs.append(logline[key])
-        print(strs)
         self.detailsText = " ".join(strs)
 
     def getLogViewModel(self):

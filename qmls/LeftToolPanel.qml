@@ -2,10 +2,8 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Dialogs
-
 Item {
     id: root
-
     ColorDialog {
         id: colorDialog
         title: "Please choose a color"
@@ -70,6 +68,7 @@ Item {
             }
             onClicked: {
                 controller.removeFilter(rightPressMenu_filterTab.idSelected)
+                rightPressMenu_filterTab.close()
             }
         }
     }
@@ -175,25 +174,19 @@ Item {
                         opacity: 0.6
                     }
 
-                    CheckBox {
+                    CustomCheckBox {
                         id: filterItemCB
-                        width: 20
-                        height: 20
                         anchors.left: parent.left
                         anchors.leftMargin: 5
                         anchors.verticalCenter: parent.verticalCenter
                         checked: modelData.enabled
+                        width: 20
+                        height: 20
+                        display: AbstractButton.IconOnly
 
-                        nextCheckState: function() {
+                        onCheckStateChanged: {
                             filterTab.hasChanges = true
-                            if (checkState === Qt.Checked) {
-                                controller.enableFilter(modelData.id, false)
-                                return Qt.Unchecked
-                            } else {
-                                controller.enableFilter(modelData.id, true)
-                                return Qt.Checked
-                            }
-                            
+                            controller.enableFilter(modelData.id, checked)
                         }
                     }
 
@@ -213,14 +206,15 @@ Item {
 
                     Rectangle {
                         id: filterColor
-                        width: 20
-                        height: 20
+                        width: 18
+                        height: 18
                         anchors.verticalCenter: parent.verticalCenter
                         anchors.right: parent.right
                         anchors.rightMargin: 5
                         color: modelData.color
                         border.width: 1
-                        border.color: "#B2B3BD"
+                        border.color: modelData.color
+                        radius: 2
                         z: 0
 
                         MouseArea {
