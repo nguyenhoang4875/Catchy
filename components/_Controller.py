@@ -10,6 +10,9 @@ from components._Configurations import Configurations
 from components._SortFilterProxyModel import SortFilterProxyModel
 import pyperclip
 import re
+import os
+import json
+ROOT_FOLDER = "C:/QtLogViewer"
 
 class Controller(QObject):
     showLoadingScreenChanged = Signal()
@@ -17,8 +20,10 @@ class Controller(QObject):
     loadLogFileCompleted     = Signal()
     detailsTextChanged       = Signal()
     highlightLineNumChanged  = Signal()
+    showNotification         = Signal(str, arguments=["message"])
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.create()
         self.filterLog          = FilterLog()
         self.logviewModel       = LogModel(logData=None)
         self._loadLogFileThread = QThread()
@@ -236,6 +241,46 @@ class Controller(QObject):
     @Slot(str)
     def copyToClipboard(self, strCopy):
         pyperclip.copy(strCopy)
+
+    def showNoti(self,message):
+        self.showNotification.emit(message)
+
+    def create(self):
+        if not os.path.exists(ROOT_FOLDER):
+            os.makedirs(ROOT_FOLDER)
+            print(f"Folder '{ROOT_FOLDER}' created.")
+        else:
+            print(f"Folder '{ROOT_FOLDER}' already exists.")
+
+        filter_path = os.path.join(ROOT_FOLDER, "filter.json")
+        if not os.path.exists(filter_path):
+            config_data = {
+                "id": 0,
+                "name": "HOME",
+                "processName": "com.webos.app.home",
+                "enabled": True,
+                "color": "#d5b6b6"
+            },
+            with open(filter_path, 'a') as file:
+                json.dump(config_data, file, indent=4)
+            print(f"File '{filter_path}' created.")
+        else:
+            print(f"File '{filter_path}' already exists.")
+        
+
+        file_path = os.path.join(ROOT_FOLDER, "savedConfig.json")
+        if not os.path.exists(file_path):
+            config_data = {
+                "filter": {
+                    "path": os.path.join(ROOT_FOLDER, "filter.json")
+                },
+                "remote": {}
+            }
+            with open(file_path, 'a') as file:
+                json.dump(config_data, file, indent=4)
+            print(f"File '{file_path}' created.")
+        else:
+            print(f"File '{file_path}' already exists.")
     
     
 

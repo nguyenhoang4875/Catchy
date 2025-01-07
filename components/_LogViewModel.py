@@ -1,5 +1,6 @@
 from PySide6.QtCore import Qt, QAbstractTableModel, QModelIndex
 import re
+import os
 LINE_NUMBER     = "line_number"
 DATE_TIME       = "datetime"
 TIME_STAMP      = "timestamp"
@@ -16,6 +17,8 @@ COL_MESSAGE     = "Message"
 
 LINE_NUMBER     = "line_number"
 LINE_DEFAULT_COLOR = "#CCCCCC"
+
+ROOT_FOLDER = "C:/QtLogViewer"
 
 log_pattern = re.compile(
     r'(?P<datetime>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z) '
@@ -38,11 +41,14 @@ class LogModel(QAbstractTableModel):
     def __init__(self, logData, parent=None):
         super().__init__(parent)
         self._column_names = [COL_DATETIME, COL_TIMESTAMP, COL_LOGLEVEL, COL_PROCESSNAME, COL_MESSAGE]
-
+        self._controller = None
         if logData is not None:
             self._log_data = logData
         else:
             self._log_data = []
+
+    def setController(self, controller):
+        self._controller = controller
 
     def loadLogFile(self, file_path, colors):
         print("loadLogFile: ", file_path)
@@ -50,21 +56,28 @@ class LogModel(QAbstractTableModel):
         parsed_log = []
         parsed_dict = {}
         lineCount = 0
-        with open(log_file_path, 'r',encoding='utf-8') as file:
-            for line in file:
-                match = log_pattern.match(line)
-                if match:
-                    log_entry = match.groupdict()
-                    log_entry[LINE_NUMBER]  = lineCount
+        try:
+            with open(log_file_path, 'r',encoding='utf-8') as file:
+                for line in file:
+                    match = log_pattern.match(line)
+                    if match:
+                        log_entry = match.groupdict()
+                        log_entry[LINE_NUMBER]  = lineCount
 
-                    if log_entry[PROCESS_NAME] in colors.keys():
-                        log_entry[COLOR] = colors[log_entry[PROCESS_NAME]]
-                    else:
-                        log_entry[COLOR] = LINE_DEFAULT_COLOR
+                        if log_entry[PROCESS_NAME] in colors.keys():
+                            log_entry[COLOR] = colors[log_entry[PROCESS_NAME]]
+                        else:
+                            log_entry[COLOR] = LINE_DEFAULT_COLOR
 
-                    parsed_dict[lineCount] = log_entry
-                    parsed_log.append(log_entry)
-                    lineCount += 1
+                        parsed_dict[lineCount] = log_entry
+                        parsed_log.append(log_entry)
+                        lineCount += 1
+        except Exception as e:
+            print(f"Error loading log file: {e}")
+            app_log_path = os.path.join(ROOT_FOLDER, 'app.log')
+            with open(app_log_path, 'w', encoding='utf-8') as file:
+                file.write(f"Error loading log file: {e}")
+            self._controller.showNoti(f"Error loading log file: {e}")
 
         return (parsed_log, parsed_dict)
 

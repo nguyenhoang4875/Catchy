@@ -415,5 +415,24 @@ ApplicationWindow {
                 filterDetailPanel.open()
             }
         }
+
+        Notification {
+            id: notification
+            anchors.centerIn: parent
+            width: parent.width * 0.25
+            height: parent.height * 0.2
+            function show(message) {
+                console.log("show: " + message)
+                notification.message = message
+                notification.open()
+            }
+
+            Connections {
+                target: controller
+                onShowNotification: {
+                    notification.show(message)
+                }
+            }
+        }
     }
 }

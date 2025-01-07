@@ -1,6 +1,8 @@
 from PySide6.QtCore import QObject, Slot
 import json
 from pathlib import Path
+import os
+ROOT_FOLDER = "C:/QtLogViewer"
 class Configurations(QObject):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -9,8 +11,9 @@ class Configurations(QObject):
     pass
 
     def loadLastSavedConfig(self):
+        savedConfigPath = os.path.join(ROOT_FOLDER, 'savedConfig.json')
         try:
-            with open(Path(__file__).resolve().parent /'../configurations/savedConfig.json', 'r', encoding='utf-8') as file:
+            with open(savedConfigPath, 'r', encoding='utf-8') as file:
                 self._configs = json.load(file)
         except Exception as e:
             print("Error loading saved configuration: ", e)
@@ -21,6 +24,7 @@ class Configurations(QObject):
     
     def saveConfig(self, key, value):
         self._configs[key] = value
-        with open(Path(__file__).resolve().parent /'../configurations/savedConfig.json', 'w', encoding='utf-8') as file:
+        savedConfigPath = os.path.join(ROOT_FOLDER, 'savedConfig.json')
+        with open(savedConfigPath, 'w', encoding='utf-8') as file:
             json.dump(self._configs, file, indent=4)
         pass
