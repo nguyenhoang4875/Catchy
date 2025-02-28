@@ -32,6 +32,86 @@ Item {
         }
     }
 
+    Connections {
+        target: helper
+
+        function onAutoScrollDownChanged() {
+            if (root.tableType === LogViewTable.TableType.ViewTable) {
+                if (helper.autoScrollDown) {
+                    logview.positionViewAtRow(logView.rows - 1, TableView.AlignBottom)
+                }
+            }
+        }
+    }
+
+    Menu {
+        id: optionMenu
+        width: 120
+        height: 30
+        property int lineSelected: -1
+        property string log: ""
+        property bool isMarked: false
+        
+        padding: 0
+        margins: 0
+        topInset: 0
+        bottomInset: 0
+        leftInset: 0
+        rightInset: 0
+        
+        function openMenu(mark, line, x, y) {
+            optionMenu.lineSelected = line
+            var logMessage = controller.getLogMessage(line)
+            optionMenu.log = logMessage
+            optionMenu.open()
+            optionMenu.x = x - 0
+            optionMenu.y = y + 30
+            optionMenu.isMarked = mark
+            if (mark) {
+                makeBookmarkBtn.contentItem.text = "Remove"
+            } else {
+                makeBookmarkBtn.contentItem.text = "Bookmark"
+            }
+        }
+
+        background: Rectangle {
+            color: "#303030"
+            radius: 2
+            border.width: 0.5
+            border.color: Qt.rgba(0.5, 0.5, 0.5, 0.5)
+        }
+
+        Button {
+            id: makeBookmarkBtn
+            width: parent.width
+            height: 30
+            anchors.centerIn: parent
+            font.family: concertOne.font.family
+            hoverEnabled: true
+            contentItem: Text {
+                text: "Bookmark"
+                color: makeBookmarkBtn.hovered ? "#acf39999" : "#ffffff"
+                font.pixelSize: 12
+                verticalAlignment: Text.AlignVCenter
+                horizontalAlignment: Text.AlignHCenter
+            }
+            flat: true
+
+            background: Rectangle {
+                color: makeBookmarkBtn.down ? "#adc8c7ca" : "transparent"
+                radius: 2
+            }
+            onClicked: {
+                if (optionMenu.isMarked) {
+                    bookmark.removeBookmark(optionMenu.lineSelected)
+                } else {
+                 bookmark.addBookmark({line: optionMenu.lineSelected, log: optionMenu.log})
+                }
+                optionMenu.close()
+            }
+        }
+    }
+
     Timer {
         id: delayTimer
         interval: 300
@@ -39,7 +119,9 @@ Item {
             let rowIdx = filterProxyModel.rowLineNum(highlightLineNum)
             for (var i = 0; i < logHeaderModel.count; i++) {
                 let item = logview.itemAtIndex(logview.index(rowIdx, i))
-                item.highlight()
+                if (item) {
+                    item.highlight()
+                }
             }
         }
     }
@@ -108,6 +190,14 @@ Item {
         clip: true
         focus: true
 
+        onRowsChanged: {
+            if (root.tableType === LogViewTable.TableType.ViewTable) {
+                if (helper.autoScrollDown) {
+                    logview.positionViewAtRow(logView.rows - 1, TableView.AlignBottom)
+                }
+            }
+        }
+
         Keys.onPressed: (event) => {
             if (event.key === Qt.Key_Control) {
                 interactive = false
@@ -142,6 +232,7 @@ Item {
             implicitWidth: header.itemAt(column).width
             property bool isLastColumn: column === header.count - 1
             property int lineNum: lineNumber
+            property bool bookmarked: bookmark.highlightLines.includes(lineNum)
 
             function highlight() {
                 highlightAnimation.start()
@@ -155,11 +246,20 @@ Item {
             }
 
             TapHandler {
-                onTapped: controller.showLogDetails(lineNumber)
+                acceptedButtons: Qt.LeftButton | Qt.RightButton
+                onTapped: (eventPoint, button) => {
+                    if (button === Qt.LeftButton) {
+                        controller.showLogDetails(lineNumber)
+                    } else if (button === Qt.RightButton) {
+                        let pos = mapToItem(logView, eventPoint.position.x, eventPoint.position.y)
+                        optionMenu.openMenu(bookmarked, lineNumber, pos.x, pos.y)
+                    }
+                }
                 onDoubleTapped: {
                     if (root.tableType === LogViewTable.TableType.SearchResultsTable) {
                         console.log("Double clicked on search result line number: " + lineNumber)
                         controller.highlightLineNum = lineNumber
+                        helper.autoScrollDown = false
                     }
                 }
             }
@@ -187,7 +287,7 @@ Item {
                 border.width: 1
                 anchors.fill: parent
                 z: -1
-                color: "#272727"
+                color: bookmarked ? "#47fd5e5e" : "#272727"
                 border.color: "#272727"
             }
 

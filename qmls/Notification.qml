@@ -14,36 +14,14 @@ Popup {
         border.width: 1
         border.color: "#aeb2b0"
     }
-
-
-    Text {
-        id: title
-        width: parent.width
-        height: 30
-        text: "Notification"
-        anchors.top: parent.top
-        anchors.topMargin: 5
-        anchors.left: icon.right
-        anchors.leftMargin: 10
-        color: "#ECEDF5"
-        verticalAlignment: Text.AlignVCenter
-        font.family: muktaVaani.font.family
-        font.pixelSize: 16
-    }
-
     Text {
         id: message
-        width: parent.width
-        height: parent.height - title.height
+        anchors.fill: parent
         text: root.message
-        anchors.top: title.bottom
-        anchors.topMargin: 5
-        anchors.left: parent.left
-        anchors.leftMargin: 10
-        anchors.right: parent.right
-        anchors.rightMargin: 10
         color: "#ECEDF5"
-        verticalAlignment: Text.AlignTop
+        verticalAlignment: Text.AlignVCenter
+        horizontalAlignment: Text.AlignHCenter
         font.family: muktaVaani.font.family
+        font.pixelSize: 16
     }
 }

@@ -4,6 +4,21 @@ import QtQuick.Layouts
 import QtQuick.Dialogs
 Item {
     id: root
+    
+    property int _IDLE          : 0
+    property int _IN_PROGRESS   : 1
+    property int _SUCCESS       : 2
+    property int _FAILED        : 3
+    
+
+    Connections {
+        target: remoteDeviceManager
+        onConnectingDeviceChanged: {
+            console.log("Connecting device changed: " + remoteDeviceManager.connectingDevice.id)
+            // console.log("Connected device changed: " + controller.connectedDevice.id)
+        }
+    }
+
     ColorDialog {
         id: colorDialog
         title: "Please choose a color"
@@ -49,26 +64,82 @@ Item {
         Button {
             id: removeFilterBtn
             width: parent.width
-            height: 20
+            height: 30
             anchors.centerIn: parent
             font.family: muktaVaani.font.family
             hoverEnabled: true
             contentItem: Text {
                 text: "Remove"
-                color: removeFilterBtn.hovered ? "#A65DEE" : "#ffffff"
+                color: removeFilterBtn.hovered ? "#0ac79e" : "#ffffff"
                 font.pixelSize: 14
                 verticalAlignment: Text.AlignVCenter
                 horizontalAlignment: Text.AlignHCenter
+                font.bold: true
             }
             flat: true
 
             background: Rectangle {
-                color: removeFilterBtn.down ? "#A65DEE" : "transparent"
+                color: removeFilterBtn.down ? "#adc8c7ca" : "transparent"
                 radius: 2
             }
             onClicked: {
                 controller.removeFilter(rightPressMenu_filterTab.idSelected)
                 rightPressMenu_filterTab.close()
+            }
+        }
+    }
+
+
+    Menu {
+        id: rightPressMenu_remoteTab
+        width: 120
+        height: 30
+        property int idSelected
+        padding: 0
+        margins: 0
+        topInset: 0
+        bottomInset: 0
+        leftInset: 0
+        rightInset: 0
+        
+        function openMenu(id, x, y) {
+            rightPressMenu_remoteTab.idSelected = id
+            rightPressMenu_remoteTab.open()
+            rightPressMenu_remoteTab.x = x
+            rightPressMenu_remoteTab.y = y - 20
+        }
+
+        background: Rectangle {
+            color: "#303030"
+            radius: 2
+            border.width: 0.5
+            border.color: Qt.rgba(0.5, 0.5, 0.5, 0.5)
+        }
+
+        Button {
+            id: removeRemoteDeviceBtn
+            width: parent.width
+            height: 30
+            anchors.centerIn: parent
+            font.family: muktaVaani.font.family
+            hoverEnabled: true
+            contentItem: Text {
+                text: "Remove"
+                color: removeRemoteDeviceBtn.hovered ? "#0ac79e" : "#ffffff"
+                font.pixelSize: 14
+                verticalAlignment: Text.AlignVCenter
+                horizontalAlignment: Text.AlignHCenter
+                font.bold: true
+            }
+            flat: true
+
+            background: Rectangle {
+                color: removeRemoteDeviceBtn.down ? "#adc8c7ca" : "transparent"
+                radius: 2
+            }
+            onClicked: {
+                controller.removeRemoteDevice(rightPressMenu_remoteTab.idSelected)
+                rightPressMenu_remoteTab.close()
             }
         }
     }
@@ -99,6 +170,17 @@ Item {
             icon.color: bar.currentIndex === 1 ? "transparent" : "#ffffff"
             background: Rectangle {
                 color: bar.currentIndex === 1 ? "transparent" : "#444444"
+                radius: 2
+            }
+        }
+        TabButton {
+            display: AbstractButton.IconOnly
+            icon.source: "./../assets/images/remote.svg"
+            icon.width: 15
+            icon.height: 15
+            icon.color: bar.currentIndex === 2 ? "#f6622be2" : "#ffffff"
+            background: Rectangle {
+                color: bar.currentIndex === 2 ? "transparent" : "#444444"
                 radius: 2
             }
         }
@@ -282,7 +364,7 @@ Item {
             }
         }
         Item {
-            id: discoverTab
+            id: bookmarkTab
             Rectangle {
                 id: discoverTabBg
                 anchors.fill: parent
@@ -291,6 +373,189 @@ Item {
                 border.color: "#6d6d6d"
                 opacity: 0.4
                 z: -1
+            }
+
+            BookmarkPanel {
+                id: bookmarkPanel
+                width: parent.width
+                height: parent.height
+                anchors.left: parent.left
+                anchors.top: parent.top
+                anchors.right: parent.right
+                anchors.bottom: parent.bottom
+            }
+        }
+        Item {
+            id: remoteTab
+            
+            property string connStatusIcon_n: "./../assets/images/remote_device_n.svg"
+            property string connStatusIcon_c: "./../assets/images/remote_device_c.svg"
+            
+
+            Rectangle {
+                id: remoteTabBg
+                anchors.fill: parent
+                color: "transparent"
+                border.width: 1
+                border.color: "#6d6d6d"
+                opacity: 0.4
+                z: -1
+            }
+
+            RoundButton {
+                id: addRemoteDeviceBtn
+                width: 30
+                height: 30
+                display: AbstractButton.IconOnly
+                icon.source: "./../assets/images/add_icon.png"
+                anchors.top: parent.top
+                anchors.topMargin: 5
+                anchors.right: parent.right
+                anchors.rightMargin: 5
+                radius: 16
+
+                background: Rectangle {
+                    implicitWidth: 30
+                    implicitHeight: 30
+                    opacity: enabled ? 1 : 0.3
+                    color: addFilterBtn.down ? "#5d5d5d" : "transparent"
+                    radius: 16
+                }
+
+                onClicked: {
+                    remoteDeviceDetailPanel.openPanel(RemoteDeviceDetailPanel.Type.New, 0)
+                }
+            }
+
+            ListView {
+                id: remoteDeviceLv
+                width: parent.width
+                height: parent.height - addRemoteDeviceBtn.height - 10
+                anchors.left: parent.left
+                anchors.bottom: parent.bottom
+                spacing: 3
+                model: remoteDeviceManager.deviceList
+
+                delegate: Item {
+                    id: remoteDeviceItem
+                    width: parent.width
+                    height: 30
+                    property int deviceId   : modelData.id
+                    property string name    : modelData.name
+                    property string host    : modelData.host
+                    property bool connected : remoteDeviceManager.connectedDevice.id === deviceId
+                    property bool connecting: (remoteDeviceManager.connectingDevice.id === deviceId) && (remoteDeviceManager.connectProcessStatus === root._IN_PROGRESS)
+                    onConnectingChanged: {
+                        console.log("Connecting changed: " + connecting)
+                    }
+                    property bool disabledDuringHasConnection: remoteDeviceManager.hasConnection && !connected
+                    
+                    enabled: !disabledDuringHasConnection
+
+                    MouseArea {
+                        anchors.fill: parent
+                        acceptedButtons: Qt.LeftButton | Qt.RightButton
+                        enabled: !remoteDeviceItem.connected
+                        onDoubleClicked: {
+                            remoteDeviceDetailPanel.openPanel(FilterDetailPanel.Type.Edit, index)
+                        }
+                        onPressed: {
+                            if (mouse.button === Qt.RightButton) {
+                                let pos = mapToItem(window.contentItem, mouse.x, mouse.y)
+                                rightPressMenu_remoteTab.openMenu(remoteDeviceItem.deviceId, pos.x , pos.y)
+                            }
+                        }
+                    }
+                    
+
+                    Rectangle {
+                        anchors.fill: parent
+                        color: remoteDeviceItem.enabled ? "transparent" : "#5f5c5c"
+                        border.color: remoteDeviceItem.enabled ? "#888888" : "#8c888888"
+                        radius: 2
+                        opacity: 0.6
+                    }
+
+
+                    Button {
+                        id: connStatusIcon
+                        anchors.left: parent.left
+                        anchors.leftMargin: 5
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: 20
+                        height: 20
+                        icon.source: remoteDeviceItem.connected ? remoteTab.connStatusIcon_c : remoteTab.connStatusIcon_n
+                        icon.color: !remoteDeviceItem.enabled ? "#af7e7e7e" : remoteDeviceItem.connected ? "#0fe62b" : "#fffdfd"
+                        display: AbstractButton.IconOnly
+                        icon.width: 20
+                        icon.height: 20
+                        padding: 0
+                        background: Rectangle {
+                            color: "transparent"
+                        }
+                    }
+
+                    Text {
+                        id: remoteDeviceName
+                        anchors.left: connStatusIcon.right
+                        width: parent.width * 0.7
+                        anchors.leftMargin: 5
+                        anchors.verticalCenter: parent.verticalCenter
+                        color: remoteDeviceItem.enabled ? "#ffffff" : "#af7e7e7e"
+                        font.pixelSize: 14
+                        text: remoteDeviceItem.name
+                        font.family: concertOne.font.family
+                    }
+
+                    AnimatedImage {
+                        id: loadingIcon
+                        width: 20
+                        height: 20
+                        anchors.right: parent.right
+                        anchors.rightMargin: 5
+                        anchors.verticalCenter: parent.verticalCenter
+                        source: "./../assets/images/loading-circle.gif"
+                        visible: remoteDeviceItem.connecting
+                        smooth: true
+                        
+                    }
+
+                    Button {
+                        id: connButton
+                        
+                        property string iconConnected: "./../assets/images/plug-connected_green.svg"
+                        property string iconDisconnected: "./../assets/images/plug-disconnected.svg"
+                        property string iconNormal: "./../assets/images/plug-connected.svg"
+                        
+                        anchors.right: parent.right
+                        anchors.rightMargin: 5
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: 20
+                        height: 20
+                        icon.source: remoteDeviceItem.connecting ? "" : 
+                                                                (remoteDeviceItem.connected ? connButton.iconDisconnected : connButton.iconNormal)
+                        hoverEnabled: true
+                        icon.color: enabled ? (hovered ? "#6163d6" : "#ffffff") : "#8c888888"
+                        display: AbstractButton.IconOnly
+                        icon.width: 20
+                        icon.height: 20
+                        padding: 0
+                        enabled: remoteDeviceItem.enabled
+                        visible: !remoteDeviceItem.connecting
+                        background: Rectangle {
+                            color: "transparent"
+                        }
+
+                        onClicked: {
+                            if (remoteDeviceItem.connected) {
+                                controller.requestDisconnectFromDevice()
+                            } else {
+                                controller.requestConnectToDevice(remoteDeviceItem.deviceId)
+                            }
+                        }
+                    }
+
+                }
             }
         }
 

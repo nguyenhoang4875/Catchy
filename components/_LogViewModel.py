@@ -77,10 +77,22 @@ class LogModel(QAbstractTableModel):
             app_log_path = os.path.join(ROOT_FOLDER, 'app.log')
             with open(app_log_path, 'w', encoding='utf-8') as file:
                 file.write(f"Error loading log file: {e}")
-            self._controller.showNoti(f"Error loading log file: {e}")
 
         return (parsed_log, parsed_dict)
 
+    def processLineData(self, lineData, colors):
+        match = log_pattern.match(lineData)
+        if match:
+            log_entry = match.groupdict()
+            if log_entry[PROCESS_NAME] in colors.keys():
+                log_entry[COLOR] = colors[log_entry[PROCESS_NAME]]
+            else:
+                log_entry[COLOR] = LINE_DEFAULT_COLOR
+            return (True, log_entry)
+        else:
+            return (False, None)
+            
+        
     def rowCount(self, parent=QModelIndex()):
         return len(self._log_data)
 

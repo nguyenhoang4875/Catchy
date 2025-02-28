@@ -6,3 +6,7 @@ from ._Controller import Controller
 from ._Worker import Worker
 from ._SearchLog import SearchLog
 from ._Configurations import Configurations
+from ._RemoteDeviceManager import RemoteDeviceManager
+from ._Toast import Toast
+from ._Helper import Helper
+from ._Bookmark import Bookmark

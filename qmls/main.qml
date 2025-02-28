@@ -120,6 +120,66 @@ ApplicationWindow {
                 }
             }
 
+            Button {
+                id: streamingControlBtn
+                anchors.left: fileBtn.right
+                width: 40
+                height: 30
+                hoverEnabled: true
+                font.family: muktaVaani.font.family
+                background: Rectangle {
+                    color: "#303030"
+                }
+                enabled: remoteDeviceManager.hasConnection
+                padding: 0
+                icon.source: remoteDeviceManager.streaming ? "./../assets/images/pause_streaming.svg" : "./../assets/images/start_streaming.svg"
+                icon.color: !enabled ? "#8c888888" : remoteDeviceManager.streaming ? "#00ff55" : "#ffffff"
+                onClicked: {
+                    if (remoteDeviceManager.streaming) {
+                        controller.stopStreaming()
+                    } else {
+                        controller.startStreaming()
+                    }
+                }
+            }
+
+            Button {
+                id: clearLogBtn
+                anchors.left: streamingControlBtn.right
+                width: 40
+                height: 30
+                // hoverEnabled: true
+                // padding: 0
+                background: Rectangle {
+                    color: "transparent"
+                    z: -1
+                }
+                icon.source: "./../assets/images/clear_icon.svg"
+                icon.color: "#ffffff"
+                onClicked: controller.clearLog()
+            }
+
+            Button {
+                id: autoScrollDownBtn
+                anchors.left: clearLogBtn.right
+                width: 40
+                height: 30
+                hoverEnabled: true
+                padding: 0
+                icon.source: "./../assets/images/auto_scroll_down.svg"
+                background: Rectangle {
+                    color: helper.autoScrollDown ? "#f86f46cf" : "transparent"
+                    radius: 4
+                    width: autoScrollDownBtn.width - 10
+                    height: autoScrollDownBtn.height - 6
+                    anchors.centerIn: autoScrollDownBtn
+                }
+
+                onClicked: {
+                    helper.autoScrollDown = !helper.autoScrollDown
+                }
+            }
+
             TextInput {
                 id: searchInput
                 width: menuBar.width / 3
@@ -132,12 +192,18 @@ ApplicationWindow {
                 color: "#ffffff"
                 leftPadding: 10
                 enabled: controller.logViewReady
+                clip: true
 
                 Keys.onPressed: (event) => {
                     if (event.key === Qt.Key_Return) {
                         console.log("Enter pressed: " + searchInput.text)
+                        controller.setSearchRegex("")
                         controller.setSearchRegex(searchInput.text)
-                        controller.setShowSearchResults(true)
+                        if (searchInput.text !== "") {
+                            controller.setShowSearchResults(true)
+                        } else {
+                            controller.setShowSearchResults(false)
+                        }
                     }
                 }
 
@@ -416,23 +482,42 @@ ApplicationWindow {
             }
         }
 
-        Notification {
-            id: notification
+        RemoteDeviceDetailPanel {
+            id: remoteDeviceDetailPanel
             anchors.centerIn: parent
-            width: parent.width * 0.25
-            height: parent.height * 0.2
-            function show(message) {
-                console.log("show: " + message)
-                notification.message = message
-                notification.open()
-            }
+            width: 400
+            height: 580
 
-            Connections {
-                target: controller
-                onShowNotification: {
-                    notification.show(message)
+            function openPanel(_type, index) {
+                console.log("openPanel: " + _type + " " + index)
+                remoteDeviceDetailPanel.selectedDeviceIndex = index
+                type = _type
+                if (_type === RemoteDeviceDetailPanel.Type.Edit) {
+                    remoteDeviceDetailPanel.remoteDeviceId      = remoteDeviceManager.deviceList[index].id
+                    remoteDeviceDetailPanel.isUseSSHGateway     = remoteDeviceManager.deviceList[index].isUseSSHGateway
+                    remoteDeviceDetailPanel.remoteDeviceName    = remoteDeviceManager.deviceList[index].name
+                    remoteDeviceDetailPanel.remoteDeviceHost    = remoteDeviceManager.deviceList[index].host
+                    remoteDeviceDetailPanel.remoteDevicePort    = remoteDeviceManager.deviceList[index].port
+                    remoteDeviceDetailPanel.remoteDeviceUser    = remoteDeviceManager.deviceList[index].username
+                    remoteDeviceDetailPanel.remoteLogPath       = remoteDeviceManager.deviceList[index].remoteLogPath
+                    remoteDeviceDetailPanel.sshGatewayHost      = remoteDeviceManager.deviceList[index].SSHGateway_IP
+                    remoteDeviceDetailPanel.sshGatewayPort      = remoteDeviceManager.deviceList[index].SSHGateway_Port
+                    remoteDeviceDetailPanel.sshGatewayUser      = remoteDeviceManager.deviceList[index].SSHGateway_User
+                } else {
+
                 }
+                remoteDeviceDetailPanel.open()
             }
         }
+
+        Toast {
+            id: toast
+            width: parent.width / 3
+            height: parent.height / 6 - 20
+            anchors.bottom: parent.bottom
+            anchors.right: parent.right
+            z: 1000
+        }
+
     }
 }

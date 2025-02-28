@@ -32,6 +32,14 @@ if __name__ == "__main__":
     engine.rootContext().setContextProperty("logModel", controller.getLogViewModel())
 
     engine.rootContext().setContextProperty("searchLog", controller.getSearchLog())
+    
+    engine.rootContext().setContextProperty("remoteDeviceManager", controller.getRemoteDeviceManager())
+    
+    engine.rootContext().setContextProperty("toastMgr", controller.getToast())
+    
+    engine.rootContext().setContextProperty("helper", controller.getHelper())
+    
+    engine.rootContext().setContextProperty("bookmark", controller.getBookmark())
 
     engine.load(qml_file)
     

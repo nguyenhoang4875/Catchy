@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Controls.Universal 2.12
 import QtQuick.Dialogs
+import QtQuick.Effects
 Popup {
     id: root
     parent: Overlay.overlay
@@ -17,11 +18,18 @@ Popup {
     background: Rectangle {
         id: dialogBg
         anchors.fill: parent
-        color: "#5b5f5f"
-        opacity: 0.8
+        color: "#363636"
+        opacity: 1
         radius: 4
         border.width: 1
-        border.color: "#aeb2b0"
+        border.color: "#5f6160"
+    }
+
+    MultiEffect {
+        source: dialogBg
+        anchors.fill: dialogBg
+        blurEnabled: true
+        blur: 0.2
     }
 
     Image {
@@ -90,10 +98,10 @@ Popup {
         }
 
         background: Rectangle {
-            color: "#444645"
+            color: "#434342"
             radius: 4
             border.width: 1
-            border.color: "#aeb2b0"
+            border.color: "#7e7e7e"
         }
     }
 
@@ -128,10 +136,10 @@ Popup {
         }
 
         background: Rectangle {
-            color: "#444645"
+            color: "#434342"
             radius: 4
             border.width: 1
-            border.color: "#aeb2b0"
+            border.color: "#7e7e7e"
         }
             
     }
@@ -153,6 +161,12 @@ Popup {
             } else {
                 return "#ECEDF5 "
             }
+        }
+        background: Rectangle {
+            color: "#434342"
+            radius: 16
+            border.width: 1
+            border.color: "#7e7e7e"
         }
         flat: true
         display: AbstractButton.IconOnly
@@ -193,7 +207,7 @@ Popup {
             color: "#444645"
             radius: 4
             border.width: 1
-            border.color: "#aeb2b0"
+            border.color: "#7f8180"
         }
 
         onClicked: {
