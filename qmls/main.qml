@@ -5,13 +5,14 @@ import Qt.labs.qmlmodels 1.0
 import QtQuick.Controls.Universal 2.12
 import QtQuick.Layouts 1.13
 import "."
+import Styles
 ApplicationWindow {
     id: window
     visible: true
     width: 1280
     height: 720
     title: "Log Viewer"
-    Universal.theme: Universal.Dark
+    Universal.theme: Styler.themeMode === Styler.ThemeMode.DARK ? Universal.Dark : Universal.Light
 
     Item {
         id: root
@@ -23,7 +24,10 @@ ApplicationWindow {
 
         Rectangle {
             id: mainBg
-            color: "#454545"
+            color: ({
+                [Styler.ThemeMode.DARK]: "#454545",
+                [Styler.ThemeMode.LIGHT]: "#D8DCD6"
+            })[Styler.themeMode]
             opacity: 0.5
             z: -100
             anchors.fill: root
@@ -44,10 +48,14 @@ ApplicationWindow {
                 hoverEnabled: true
                 font.family: muktaVaani.font.family
                 background: Rectangle {
-                    color: "#303030"
+                    color: "transparent"
                 }
 
                 icon.source: "./../assets/images/settings_icon.png"
+                icon.color: ({
+                    [Styler.ThemeMode.DARK]: "#ffffff",
+                    [Styler.ThemeMode.LIGHT]: "#1F0954"
+                })[Styler.themeMode]
 
                 onClicked: fileMenu.open()
 
@@ -128,12 +136,16 @@ ApplicationWindow {
                 hoverEnabled: true
                 font.family: muktaVaani.font.family
                 background: Rectangle {
-                    color: "#303030"
+                    color: "transparent"
                 }
                 enabled: remoteDeviceManager.hasConnection
                 padding: 0
                 icon.source: remoteDeviceManager.streaming ? "./../assets/images/pause_streaming.svg" : "./../assets/images/start_streaming.svg"
-                icon.color: !enabled ? "#8c888888" : remoteDeviceManager.streaming ? "#00ff55" : "#ffffff"
+                icon.color: !enabled ? "#8c888888" : remoteDeviceManager.streaming ? "#00ff55" 
+                                                                                    : ({
+                                                                                        [Styler.ThemeMode.DARK]: "#ffffff",
+                                                                                        [Styler.ThemeMode.LIGHT]: "#1F0954"
+                                                                                    })[Styler.themeMode]
                 onClicked: {
                     if (remoteDeviceManager.streaming) {
                         controller.stopStreaming()
@@ -154,8 +166,12 @@ ApplicationWindow {
                     color: "transparent"
                     z: -1
                 }
+
                 icon.source: "./../assets/images/clear_icon.svg"
-                icon.color: "#ffffff"
+                icon.color: ({
+                    [Styler.ThemeMode.DARK]: "#ffffff",
+                    [Styler.ThemeMode.LIGHT]: "#1F0954"
+                })[Styler.themeMode]
                 onClicked: controller.clearLog()
             }
 
@@ -167,6 +183,10 @@ ApplicationWindow {
                 hoverEnabled: true
                 padding: 0
                 icon.source: "./../assets/images/auto_scroll_down.svg"
+                icon.color: ({
+                    [Styler.ThemeMode.DARK]: "#ffffff",
+                    [Styler.ThemeMode.LIGHT]: helper.autoScrollDown ? "#4fc4cf" : "#1F0954"
+                })[Styler.themeMode]
                 background: Rectangle {
                     color: helper.autoScrollDown ? "#f86f46cf" : "transparent"
                     radius: 4
@@ -189,7 +209,10 @@ ApplicationWindow {
                 font.pixelSize: 14
                 font.family: muktaVaani.font.family
                 verticalAlignment: Text.AlignVCenter
-                color: "#ffffff"
+                color: ({
+                    [Styler.ThemeMode.DARK]: "#ffffff",
+                    [Styler.ThemeMode.LIGHT]: "#3A1D5E"
+                })[Styler.themeMode]
                 leftPadding: 10
                 enabled: controller.logViewReady
                 clip: true
@@ -214,7 +237,10 @@ ApplicationWindow {
                     verticalAlignment: Text.AlignVCenter
                     horizontalAlignment: Text.AlignHCenter
                     text: "Search"
-                    color: "#6E6E6E"
+                    color: ({
+                        [Styler.ThemeMode.DARK]: "#ffffff",
+                        [Styler.ThemeMode.LIGHT]: "#1F0954"
+                    })[Styler.themeMode]
                     font.pixelSize: 14
                     font.family: concertOne.font.family
                     z: 0
@@ -225,10 +251,66 @@ ApplicationWindow {
                     id: borderSearchInput
                     anchors.fill: parent
                     border.width: 1
-                    border.color: "#595959"
+                    border.color: ({
+                        [Styler.ThemeMode.DARK]: "#595959",
+                        [Styler.ThemeMode.LIGHT]: "#6a6087"
+                    })[Styler.themeMode]
                     radius: 2
-                    color: "#3B3B3B"
+                    color: ({
+                        [Styler.ThemeMode.DARK]: "#595959",
+                        [Styler.ThemeMode.LIGHT]: "#eceaef"
+                    })[Styler.themeMode]
                     z: -1
+                }
+            }
+
+            Button {
+                id: themeBtn
+                anchors.right: author.left
+                anchors.rightMargin: 10
+                width: 40
+                height: 30
+                hoverEnabled: true
+                icon.source: ({
+                    [Styler.ThemeMode.DARK]: "./../assets/images/dark_theme.svg",
+                    [Styler.ThemeMode.LIGHT]: "./../assets/images/light_theme.svg"
+                })[Styler.themeMode]
+
+                icon.color: ({
+                    [Styler.ThemeMode.DARK]: hovered ? "#FF9408" : "#ffffff",
+                    [Styler.ThemeMode.LIGHT]: hovered ? "#D46A7E" : "#1F0954"
+                })[Styler.themeMode]
+
+                background: Rectangle {
+                    color: "transparent"
+                }
+
+                onClicked: {
+                    Styler.themeMode = Styler.themeMode === Styler.ThemeMode.LIGHT ? Styler.ThemeMode.DARK : Styler.ThemeMode.LIGHT
+                }
+            }
+
+            Button {
+                id: showLessColumnBtn
+                anchors.right: themeBtn.left
+                anchors.rightMargin: 10
+                width: 40
+                height: 30
+                hoverEnabled: true
+                icon.source: "./../assets/images/columns.svg"
+                property bool isOn: Styler.showLessColumns
+
+                icon.color: ({
+                    [Styler.ThemeMode.DARK]: hovered ? "#FF9408" : isOn ? "#3ddbd9" : "#ffffff",
+                    [Styler.ThemeMode.LIGHT]: hovered ? "#D46A7E" : isOn ? "#D00F32" : "#1F0954"
+                })[Styler.themeMode]
+
+                background: Rectangle {
+                    color: "transparent"
+                }
+
+                onClicked: {
+                    Styler.showLessColumns = !Styler.showLessColumns
                 }
             }
 
@@ -241,7 +323,10 @@ ApplicationWindow {
                 text: "by @phi.nguyen"
                 font.pixelSize: 14
                 font.family: moiraiOne.font.family
-                color: "#ffffff"
+                color: ({
+                    [Styler.ThemeMode.DARK]: "#ffffff",
+                    [Styler.ThemeMode.LIGHT]: "#000133"
+                })[Styler.themeMode]
                 antialiasing: true
                 font.bold: true
             }
@@ -249,7 +334,10 @@ ApplicationWindow {
             Rectangle {
                 id: menuBarBg
                 anchors.fill: parent
-                color: "#303030"
+                color: ({
+                    [Styler.ThemeMode.DARK]: "#303030",
+                    [Styler.ThemeMode.LIGHT]: "#B7C9E2"
+                })[Styler.themeMode]
                 z: -1
             }
         }
@@ -262,6 +350,12 @@ ApplicationWindow {
             anchors.bottom: root.bottom
             anchors.top: menuBar.bottom
 
+            handle: Rectangle {
+                implicitHeight: 0.7
+                color: SplitHandle.pressed  ? "#bab5c7"
+                                            : (SplitHandle.hovered ? Qt.lighter("#bab5c7", 1.1) : Qt.darker("#bab5c7", 1.1))
+            }
+
             Item {
                 id: topView
                 SplitView.preferredHeight: verSplit.height * 0.65
@@ -271,6 +365,13 @@ ApplicationWindow {
                     orientation : Qt.Horizontal
                     height      : topView.height
                     width       : topView.width
+
+                    handle: Rectangle {
+                        implicitWidth: 0.7
+                        color: SplitHandle.pressed ? "#bab5c7"
+                                                    : (SplitHandle.hovered ? Qt.lighter("#bab5c7", 1.1) : Qt.darker("#bab5c7", 1.1))
+                    }
+
                     LeftToolPanel {
                         id: leftView
                         SplitView.preferredWidth: horSplit.width * 0.15
@@ -365,7 +466,10 @@ ApplicationWindow {
                 Rectangle {
                     id: detailViewBg
                     anchors.fill: parent
-                    color: "#303030"
+                    color: ({
+                        [Styler.ThemeMode.DARK]: "#303030",
+                        [Styler.ThemeMode.LIGHT]: "#31668A"
+                    })[Styler.themeMode]
                     z: -1
                 }
 
@@ -396,7 +500,10 @@ ApplicationWindow {
                     color: "#ffffff"
                     textFormat: Text.RichText
                     background: Rectangle {
-                        color: "#303030"
+                        color: ({
+                            [Styler.ThemeMode.DARK]: "#303030",
+                            [Styler.ThemeMode.LIGHT]: "#31668A"
+                        })[Styler.themeMode]
                         z: -2
                     }
 
@@ -473,6 +580,8 @@ ApplicationWindow {
             anchors.centerIn: parent
             width: parent.width * 0.3
             height: parent.height * 0.3
+            dim: true
+            closePolicy: Popup.CloseOnPressOutside
 
             function openPanel(_type, index) {
                 console.log("openPanel: " + _type + " " + index)
@@ -487,7 +596,9 @@ ApplicationWindow {
             anchors.centerIn: parent
             width: 400
             height: 580
-
+            closePolicy: Popup.CloseOnPressOutside
+            modal: true
+            dim: true
             function openPanel(_type, index) {
                 console.log("openPanel: " + _type + " " + index)
                 remoteDeviceDetailPanel.selectedDeviceIndex = index

@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Dialogs
+import Styles
 Item {
     id: root
     
@@ -55,7 +56,10 @@ Item {
         }
 
         background: Rectangle {
-            color: "#303030"
+            color: ({
+                [Styler.ThemeMode.LIGHT]:   "#5684AE",
+                [Styler.ThemeMode.DARK]:    "#303030"
+            })[Styler.themeMode]
             radius: 2
             border.width: 0.5
             border.color: Qt.rgba(0.5, 0.5, 0.5, 0.5)
@@ -110,7 +114,10 @@ Item {
         }
 
         background: Rectangle {
-            color: "#303030"
+            color: ({
+                [Styler.ThemeMode.LIGHT]:   "#5684AE",
+                [Styler.ThemeMode.DARK]:    "#303030"
+            })[Styler.themeMode]
             radius: 2
             border.width: 0.5
             border.color: Qt.rgba(0.5, 0.5, 0.5, 0.5)
@@ -156,31 +163,49 @@ Item {
             icon.source: "./../assets/images/filter_icon.png"
             icon.height: 15
             icon.width: 15
-            icon.color: bar.currentIndex === 0 ? "transparent" : "#ffffff"
+            icon.color: ({
+                [Styler.ThemeMode.LIGHT]:   bar.currentIndex === 0 ? "#f6622be2" : "#ffffff",
+                [Styler.ThemeMode.DARK]:    bar.currentIndex === 0 ? "transparent" : "#ffffff"
+            })[Styler.themeMode]
             background: Rectangle {
-                color: bar.currentIndex === 0 ?  "transparent" : "#444444"
+                color: ({
+                    [Styler.ThemeMode.LIGHT]:   bar.currentIndex === 0 ? "transparent" : "#5684AE",
+                    [Styler.ThemeMode.DARK]:    bar.currentIndex === 0 ? "transparent" : "#444444"
+                })[Styler.themeMode]
                 radius: 2
             }
         }
         TabButton {
             display: AbstractButton.IconOnly
             icon.source: "./../assets/images/bookmark_icon.png"
-            icon.width: 15
             icon.height: 15
-            icon.color: bar.currentIndex === 1 ? "transparent" : "#ffffff"
+            icon.width: 15
+            icon.color: ({
+                [Styler.ThemeMode.LIGHT]:   bar.currentIndex === 1 ? "#f6622be2" : "#ffffff",
+                [Styler.ThemeMode.DARK]:    bar.currentIndex === 1 ? "transparent" : "#ffffff"
+            })[Styler.themeMode]
             background: Rectangle {
-                color: bar.currentIndex === 1 ? "transparent" : "#444444"
+                color: ({
+                    [Styler.ThemeMode.LIGHT]:   bar.currentIndex === 1 ? "transparent" : "#5684AE",
+                    [Styler.ThemeMode.DARK]:    bar.currentIndex === 1 ? "transparent" : "#444444"
+                })[Styler.themeMode]
                 radius: 2
             }
         }
         TabButton {
             display: AbstractButton.IconOnly
             icon.source: "./../assets/images/remote.svg"
-            icon.width: 15
             icon.height: 15
-            icon.color: bar.currentIndex === 2 ? "#f6622be2" : "#ffffff"
+            icon.width: 15
+            icon.color: ({
+                [Styler.ThemeMode.LIGHT]:   bar.currentIndex === 2 ? "#f6622be2" : "#ffffff",
+                [Styler.ThemeMode.DARK]:    bar.currentIndex === 2 ? "transparent" : "#ffffff"
+            })[Styler.themeMode]
             background: Rectangle {
-                color: bar.currentIndex === 2 ? "transparent" : "#444444"
+                color: ({
+                    [Styler.ThemeMode.LIGHT]:   bar.currentIndex === 2 ? "transparent" : "#5684AE",
+                    [Styler.ThemeMode.DARK]:    bar.currentIndex === 2 ? "transparent" : "#444444"
+                })[Styler.themeMode]
                 radius: 2
             }
         }
@@ -250,7 +275,10 @@ Item {
 
                     Rectangle {
                         anchors.fill: parent
-                        color: "transparent"
+                        color: ({
+                            [Styler.ThemeMode.LIGHT]:   "#5684AE",
+                            [Styler.ThemeMode.DARK]:    "transparent"
+                        })[Styler.themeMode]
                         border.color: "#888888"
                         radius: 2
                         opacity: 0.6
@@ -280,7 +308,10 @@ Item {
                         anchors.leftMargin: 35
                         verticalAlignment: Text.AlignVCenter
                         horizontalAlignment: Text.AlignLeft
-                        color: "#CAAFE4"
+                        color: ({
+                            [Styler.ThemeMode.LIGHT]:   "#ffffff",
+                            [Styler.ThemeMode.DARK]:    "#CAAFE4"
+                        })[Styler.themeMode]
                         font.family: concertOne.font.family
                         font.pixelSize: 14
                         text: modelData.name
@@ -326,7 +357,10 @@ Item {
                 Rectangle {
                     id: applyChangesBg
                     anchors.fill: parent
-                    color: parent.enabled ? (applyChangesArea.containsMouse ? "#5D62EE" : "#444444") : Qt.rgba(207, 202, 202, 0.18)
+                    color: ({
+                        [Styler.ThemeMode.LIGHT]:   parent.enabled ? (applyChangesArea.containsMouse ? "#5D62EE" : "#85A3B2") : "#aeb2b0",
+                        [Styler.ThemeMode.DARK]:    parent.enabled ? (applyChangesArea.containsMouse ? "#5D62EE" : "#444444") : Qt.rgba(207, 202, 202, 0.18)
+                    })[Styler.themeMode]
                     radius: 2
                     border.width: 1
                     border.color: "#aeb2b0"
@@ -336,7 +370,10 @@ Item {
                     id: applyChangesText
                     anchors.centerIn: parent
                     text: "Apply"
-                    color: parent.enabled ? "#ECEDF5" : Qt.rgba(202, 200, 200, 0.15)
+                    color: ({
+                        [Styler.ThemeMode.LIGHT]:   parent.enabled ? "#ECEDF5" : Qt.rgba(185, 208, 230, 0.78),
+                        [Styler.ThemeMode.DARK]:    parent.enabled ? "#ECEDF5" : Qt.rgba(202, 200, 200, 0.15)
+                    })[Styler.themeMode]
                     font.family: muktaVaani.font.family
                     font.pixelSize: 14
                 }
@@ -358,9 +395,12 @@ Item {
                 anchors.fill: parent
                 color: "transparent"
                 border.width: 1
-                border.color: "#6d6d6d"
+                border.color: ({
+                    [Styler.ThemeMode.LIGHT]:   "#ffffff",
+                    [Styler.ThemeMode.DARK]:    "#6d6d6d"
+                })[Styler.themeMode]
                 opacity: 0.4
-                z: -1
+                z: 1
             }
         }
         Item {
@@ -470,7 +510,10 @@ Item {
 
                     Rectangle {
                         anchors.fill: parent
-                        color: remoteDeviceItem.enabled ? "transparent" : "#5f5c5c"
+                        color: ({
+                            [Styler.ThemeMode.LIGHT]:   remoteDeviceItem.enabled ? "#5684AE"    : "#5f5c5c",
+                            [Styler.ThemeMode.DARK]:    remoteDeviceItem.enabled ? "transparent" : "#5f5c5c"
+                        })[Styler.themeMode]
                         border.color: remoteDeviceItem.enabled ? "#888888" : "#8c888888"
                         radius: 2
                         opacity: 0.6

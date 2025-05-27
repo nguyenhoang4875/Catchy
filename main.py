@@ -19,6 +19,7 @@ if __name__ == "__main__":
     QQuickStyle.setStyle("Fusion")
     engine = QQmlApplicationEngine()
     engine.addImportPath(Path(__file__).parent)
+    engine.addImportPath("qrc:/styles")
     qml_file = Path(__file__).resolve().parent / "qmls/main.qml"
 
     qmlRegisterType(SortFilterProxyModel, "com.mycompany.qmlcomponents", 1, 0, "SortFilterProxyModel")

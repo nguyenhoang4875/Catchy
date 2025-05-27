@@ -34,6 +34,8 @@ class Controller(QObject):
     detailsTextChanged          = Signal()
     highlightLineNumChanged     = Signal()
     showNotification            = Signal(str, arguments=["message"])
+    themeChanged                = Signal()
+    showLessColumnsChanged      = Signal()
     def __init__(self, parent=None):
         super().__init__(parent)
         self.create()
@@ -64,6 +66,8 @@ class Controller(QObject):
         
         
         self._streamingFilePath = ""
+        self._theme = self._configs.getConfigs().get("theme", "light")
+        self._showLessColumns = self._configs.getConfigs().get("showLessColumns", False)
         
         atexit.register(self.cleanup)
         pass
@@ -119,6 +123,27 @@ class Controller(QObject):
     def highlightLineNum(self, val):
         self._highlightLineNum = val
         self.highlightLineNumChanged.emit()
+
+    @Property(str, notify=themeChanged)
+    def theme(self):
+        return self._theme
+
+    @theme.setter
+    def theme(self, val):
+        print("theme: ", val)
+        self._theme = val
+        self._configs.saveConfig("theme", val)
+        self.themeChanged.emit()
+
+    @Property(bool, notify=showLessColumnsChanged)
+    def showLessColumns(self):
+        return self._showLessColumns
+    
+    @showLessColumns.setter
+    def showLessColumns(self, val):
+        self._showLessColumns = val
+        self._configs.saveConfig("showLessColumns", val)
+        self.showLessColumnsChanged.emit()
 
     @Slot(int)
     def showLogDetails(self, line):
@@ -371,15 +396,28 @@ class Controller(QObject):
 
     @Slot(str, result=str)
     def hightlightSearchResults(self, line):
-        
-        match = re.search(self._searchLog.searchRegex.pattern(), line, flags=re.IGNORECASE)
-        if match and self._searchLog.searchRegex.pattern() != "":
-            return re.sub(self._searchLog.searchRegex.pattern(), self.replace_with_span, line, flags=re.IGNORECASE)
-        else:
+        if not self._searchLog.searchWords or not self._searchLog.showSearchResults:
             return line
+        
+        result_line = line
+        
+        # Highlight từng từ khóa với màu khác nhau
+        for i, word in enumerate(self._searchLog.searchWords):
+            if word:  # Kiểm tra từ khóa không rỗng
+                color = self._searchLog.getColorForIndex(i)
+                # Escape special regex characters để tránh lỗi
+                escaped_word = re.escape(word)
+                pattern = re.compile(escaped_word, re.IGNORECASE)
+                result_line = pattern.sub(
+                    lambda match: f"<span style='background-color: {color}'>{match.group(0)}</span>",
+                    result_line
+                )
+        
+        return result_line
 
-    def replace_with_span(self, match):
-        return f"<span style='background-color: rgba(97, 165, 77, 0.6)'>{match.group(0)}</span>"
+    def replace_with_span_color(self, match, color):
+        """Helper function để tạo span với màu cụ thể"""
+        return f"<span style='background-color: {color}'>{match.group(0)}</span>"
     
     @Slot(str)
     def copyToClipboard(self, strCopy):
@@ -417,6 +455,8 @@ class Controller(QObject):
                 "filter": {
                     "path": os.path.join(ROOT_FOLDER, "filter.json")
                 },
+                "theme": "light",
+                "showLessColumns": False,
                 "remote": {
                     "devices": [
                         {

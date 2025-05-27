@@ -3,6 +3,7 @@ import QtQuick.Controls
 import QtQuick.Controls.Universal 2.12
 import QtQuick.Dialogs
 import QtQuick.Effects
+import Styles
 Popup {
     id: root
     parent: Overlay.overlay
@@ -22,6 +23,32 @@ Popup {
     property string sshGatewayUser: ""
     
     property bool remoteDeviceConnected: false
+
+    onVisibleChanged: {
+        if (visible) {
+            if (root.type === FilterDetailPanel.Type.New) {
+                remoteDeviceNameField.text = ""
+                remoteDeviceHostField.text = ""
+                remoteDevicePortField.text = "22"
+                remoteDeviceUserField.text = ""
+                remoteLogPathField.text = "/var/log/messages"
+                useSSHGatewayCB.checked = false
+                sshGatewayHostField.text = ""
+                sshGatewayPortField.text = "22"
+                sshGatewayUserField.text = ""
+            } else {
+                remoteDeviceNameField.text = root.remoteDeviceName
+                remoteDeviceHostField.text = root.remoteDeviceHost
+                remoteDevicePortField.text = root.remoteDevicePort.toString()
+                remoteDeviceUserField.text = root.remoteDeviceUser
+                remoteLogPathField.text = root.remoteLogPath
+                useSSHGatewayCB.checked = root.isUseSSHGateway
+                sshGatewayHostField.text = root.sshGatewayHost
+                sshGatewayPortField.text = root.sshGatewayPort.toString()
+                sshGatewayUserField.text = root.sshGatewayUser
+            }
+        }
+    }
     
 
     enum Type {
@@ -35,7 +62,10 @@ Popup {
     background: Rectangle {
         id: dialogBg
         anchors.fill: parent
-        color: "#363636"
+        color: ({
+            [Styler.ThemeMode.DARK]: "#363636",
+            [Styler.ThemeMode.LIGHT]: "#eff0f3"
+        })[Styler.themeMode]
         opacity: 1
         radius: 4
         border.width: 1
@@ -78,7 +108,10 @@ Popup {
         anchors.topMargin: 5
         anchors.left: icon.right
         anchors.leftMargin: 10
-        color: "#ECEDF5"
+        color: ({
+            [Styler.ThemeMode.DARK]: "#ECEDF5",
+            [Styler.ThemeMode.LIGHT]: "#3F3075"
+        })[Styler.themeMode]
         verticalAlignment: Text.AlignVCenter
         font.family: muktaVaani.font.family
         font.pixelSize: 16
@@ -94,7 +127,10 @@ Popup {
         anchors.leftMargin: 10
         anchors.right: parent.right
         anchors.rightMargin: 10
-        color: "#ECEDF5"
+        color: ({
+            [Styler.ThemeMode.DARK]: "#ECEDF5",
+            [Styler.ThemeMode.LIGHT]: "#3F3075"
+        })[Styler.themeMode]
         verticalAlignment: Text.AlignVCenter
         font.family: muktaVaani.font.family
         font.pixelSize: 13
@@ -115,7 +151,10 @@ Popup {
         }
 
         background: Rectangle {
-            color: "#434342"
+            color: ({
+                [Styler.ThemeMode.DARK]: "#434342",
+                [Styler.ThemeMode.LIGHT]: "#e2dae1"
+            })[Styler.themeMode]
             radius: 4
             border.width: 1
             border.color: "#7e7e7e"
@@ -132,7 +171,10 @@ Popup {
         anchors.leftMargin: 10
         anchors.right: parent.right
         anchors.rightMargin: 10
-        color: "#ECEDF5"
+        color: ({
+            [Styler.ThemeMode.DARK]: "#ECEDF5",
+            [Styler.ThemeMode.LIGHT]: "#3F3075"
+        })[Styler.themeMode]
         verticalAlignment: Text.AlignVCenter
         font.family: muktaVaani.font.family
         font.pixelSize: 13
@@ -154,7 +196,10 @@ Popup {
         }
 
         background: Rectangle {
-            color: "#434342"
+            color: ({
+                [Styler.ThemeMode.DARK]: "#434342",
+                [Styler.ThemeMode.LIGHT]: "#e2dae1"
+            })[Styler.themeMode]
             radius: 4
             border.width: 1
             border.color: "#7e7e7e"
@@ -172,7 +217,10 @@ Popup {
         anchors.leftMargin: 10
         anchors.right: parent.right
         anchors.rightMargin: 10
-        color: "#ECEDF5"
+        color: ({
+            [Styler.ThemeMode.DARK]: "#ECEDF5",
+            [Styler.ThemeMode.LIGHT]: "#3F3075"
+        })[Styler.themeMode]
         verticalAlignment: Text.AlignVCenter
         font.family: muktaVaani.font.family
         font.pixelSize: 13
@@ -194,7 +242,10 @@ Popup {
         }
 
         background: Rectangle {
-            color: "#434342"
+            color: ({
+                [Styler.ThemeMode.DARK]: "#434342",
+                [Styler.ThemeMode.LIGHT]: "#e2dae1"
+            })[Styler.themeMode]
             radius: 4
             border.width: 1
             border.color: "#7e7e7e"
@@ -211,7 +262,10 @@ Popup {
         anchors.leftMargin: 10
         anchors.right: parent.right
         anchors.rightMargin: 10
-        color: "#ECEDF5"
+        color: ({
+            [Styler.ThemeMode.DARK]: "#ECEDF5",
+            [Styler.ThemeMode.LIGHT]: "#3F3075"
+        })[Styler.themeMode]
         verticalAlignment: Text.AlignVCenter
         font.family: muktaVaani.font.family
         font.pixelSize: 13
@@ -232,7 +286,10 @@ Popup {
         }
 
         background: Rectangle {
-            color: "#434342"
+            color: ({
+                [Styler.ThemeMode.DARK]: "#434342",
+                [Styler.ThemeMode.LIGHT]: "#e2dae1"
+            })[Styler.themeMode]
             radius: 4
             border.width: 1
             border.color: "#7e7e7e"
@@ -249,7 +306,10 @@ Popup {
         anchors.leftMargin: 10
         anchors.right: parent.right
         anchors.rightMargin: 10
-        color: "#ECEDF5"
+        color: ({
+            [Styler.ThemeMode.DARK]: "#ECEDF5",
+            [Styler.ThemeMode.LIGHT]: "#3F3075"
+        })[Styler.themeMode]
         verticalAlignment: Text.AlignVCenter
         font.family: muktaVaani.font.family
         font.pixelSize: 13
@@ -270,7 +330,10 @@ Popup {
         }
 
         background: Rectangle {
-            color: "#434342"
+            color: ({
+                [Styler.ThemeMode.DARK]: "#434342",
+                [Styler.ThemeMode.LIGHT]: "#e2dae1"
+            })[Styler.themeMode]
             radius: 4
             border.width: 1
             border.color: "#7e7e7e"
@@ -298,7 +361,10 @@ Popup {
         anchors.leftMargin: 10
         anchors.right: parent.right
         anchors.rightMargin: 10
-        color: enabled ? "#ECEDF5" : "#8eecedf5"
+        color: ({
+            [Styler.ThemeMode.DARK]: enabled ? "#ECEDF5" : "#8eecedf5",
+            [Styler.ThemeMode.LIGHT]: enabled ? "#3F3075" : "#7a616060"
+        })[Styler.themeMode]
         verticalAlignment: Text.AlignVCenter
         font.family: muktaVaani.font.family
         font.pixelSize: 13
@@ -321,7 +387,10 @@ Popup {
         }
 
         background: Rectangle {
-            color: enabled ? "#434342" : "#7a616060"
+            color: ({
+                [Styler.ThemeMode.DARK]: enabled ? "#434342" : "#7a616060",
+                [Styler.ThemeMode.LIGHT]: enabled ? "#e2dae1" : "#7a616060"
+            })[Styler.themeMode]
             radius: 4
             border.width: 1
             border.color: enabled ? "#7e7e7e" : "#424242"
@@ -338,7 +407,10 @@ Popup {
         anchors.leftMargin: 10
         anchors.right: parent.right
         anchors.rightMargin: 10
-        color: enabled ? "#ECEDF5" : "#8eecedf5"
+        color: ({
+            [Styler.ThemeMode.DARK]: enabled ? "#ECEDF5" : "#8eecedf5",
+            [Styler.ThemeMode.LIGHT]: enabled ? "#3F3075" : "#7a616060"
+        })[Styler.themeMode]
         verticalAlignment: Text.AlignVCenter
         font.family: muktaVaani.font.family
         font.pixelSize: 13
@@ -360,7 +432,10 @@ Popup {
         }
 
         background: Rectangle {
-            color: enabled ? "#434342" : "#7a616060"
+            color: ({
+                [Styler.ThemeMode.DARK]: enabled ? "#434342" : "#7a616060",
+                [Styler.ThemeMode.LIGHT]: enabled ? "#e2dae1" : "#7a616060"
+            })[Styler.themeMode]
             radius: 4
             border.width: 1
             border.color: enabled ? "#7e7e7e" : "#424242"
@@ -377,7 +452,10 @@ Popup {
         anchors.leftMargin: 10
         anchors.right: parent.right
         anchors.rightMargin: 10
-        color: enabled ? "#ECEDF5" : "#75ecedf5"
+        color: ({
+            [Styler.ThemeMode.DARK]: enabled ? "#ECEDF5" : "#8eecedf5",
+            [Styler.ThemeMode.LIGHT]: enabled ? "#3F3075" : "#7a616060"
+        })[Styler.themeMode]
         verticalAlignment: Text.AlignVCenter
         font.family: muktaVaani.font.family
         font.pixelSize: 13
@@ -400,7 +478,10 @@ Popup {
         }
 
         background: Rectangle {
-            color: enabled ? "#434342" : "#7a616060"
+            color: ({
+                [Styler.ThemeMode.DARK]: enabled ? "#434342" : "#7a616060",
+                [Styler.ThemeMode.LIGHT]: enabled ? "#e2dae1" : "#7a616060"
+            })[Styler.themeMode]
             radius: 4
             border.width: 1
             border.color: enabled ? "#7e7e7e" : "#424242"
@@ -415,11 +496,21 @@ Popup {
         anchors.rightMargin: 10
         anchors.bottom: parent.bottom
         anchors.bottomMargin: 5
-        text: "OK"
-        font.family: muktaVaani.font.family
+        contentItem: Text {
+            text: "OK"
+            color: ({
+                [Styler.ThemeMode.DARK]: "#ECEDF5",
+                [Styler.ThemeMode.LIGHT]: "#ECEDF5"
+            })[Styler.themeMode]
+            verticalAlignment: Text.AlignVCenter
+            horizontalAlignment: Text.AlignHCenter
+            font.family: muktaVaani.font.family
+            font.bold: true
+            font.pixelSize: 13
+        }
 
         background: Rectangle {
-            color: "#444645"
+            color: Styler.ThemeMode.DARK === Styler.themeMode ? "#444645" : "#7d85ff"
             radius: 4
             border.width: 1
             border.color: "#7f8180"

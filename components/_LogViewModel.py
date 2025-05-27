@@ -16,7 +16,7 @@ COL_PROCESSNAME = "Process Name"
 COL_MESSAGE     = "Message"
 
 LINE_NUMBER     = "line_number"
-LINE_DEFAULT_COLOR = "#CCCCCC"
+LINE_DEFAULT_COLOR = "#B6B5B5"
 
 ROOT_FOLDER = "C:/QtLogViewer"
 

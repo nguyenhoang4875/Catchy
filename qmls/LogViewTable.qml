@@ -4,7 +4,7 @@ import Qt.labs.qmlmodels 1.0
 import QtQuick.Controls.Universal 2.12
 import QtQuick.Layouts 1.13
 import com.mycompany.qmlcomponents 1.0
-
+import Styles
 Item {
     id: root
     enum TableType {
@@ -75,7 +75,10 @@ Item {
         }
 
         background: Rectangle {
-            color: "#303030"
+            color: ({
+                [Styler.ThemeMode.DARK]: "#303030",
+                [Styler.ThemeMode.LIGHT]: "#8078DE"
+            })[Styler.themeMode]
             radius: 2
             border.width: 0.5
             border.color: Qt.rgba(0.5, 0.5, 0.5, 0.5)
@@ -90,10 +93,14 @@ Item {
             hoverEnabled: true
             contentItem: Text {
                 text: "Bookmark"
-                color: makeBookmarkBtn.hovered ? "#acf39999" : "#ffffff"
+                color: ({
+                    [Styler.ThemeMode.DARK]: makeBookmarkBtn.hovered ? "#acf39999" : "#ffffff",
+                    [Styler.ThemeMode.LIGHT]: makeBookmarkBtn.hovered ? "#FFC513" : "#FDB147"
+                })[Styler.themeMode]
                 font.pixelSize: 12
                 verticalAlignment: Text.AlignVCenter
                 horizontalAlignment: Text.AlignHCenter
+                font.bold: true
             }
             flat: true
 
@@ -128,11 +135,37 @@ Item {
 
     ListModel {
         id: logHeaderModel
-        ListElement { title: "Date Time";       size: 0.17 }
-        ListElement { title: "Time Stamp";      size: 0.1 }
-        ListElement { title: "Log level";       size: 0.07 }
-        ListElement { title: "Process Name";    size: 0.1 }
-        ListElement { title: "Message";         size: 0 }
+        ListElement { title: "Date Time";       size: 0.17 ;    resizeable: true }
+        ListElement { title: "Time Stamp";      size: 0.1 ;     resizeable: true }
+        ListElement { title: "Log level";       size: 0.07 ;    resizeable: true }
+        ListElement { title: "Process Name";    size: 0.1 ;     resizeable: true }
+        ListElement { title: "Message";         size: 0 ;       resizeable: true }
+    }
+
+    Connections {
+        target: controller
+
+        function onShowLessColumnsChanged() {
+            if (controller.showLessColumns) {
+                logHeaderModel.setProperty(0, "size", 0)
+                logHeaderModel.setProperty(0, "resizeable", false)
+                logHeaderModel.setProperty(1, "size", 0)
+                logHeaderModel.setProperty(1, "resizeable", false)
+                logHeaderModel.setProperty(2, "size", 0)
+                logHeaderModel.setProperty(2, "resizeable", false)
+                logHeaderModel.setProperty(3, "size", 0.1)
+                logHeaderModel.setProperty(4, "size", 0.9)
+            } else {
+                logHeaderModel.setProperty(0, "size", 0.17)
+                logHeaderModel.setProperty(0, "resizeable", true)
+                logHeaderModel.setProperty(1, "size", 0.1)
+                logHeaderModel.setProperty(1, "resizeable", true)
+                logHeaderModel.setProperty(2, "size", 0.07)
+                logHeaderModel.setProperty(2, "resizeable", true)
+                logHeaderModel.setProperty(3, "size", 0.1)
+                logHeaderModel.setProperty(4, "size", 0)
+            }
+        }
     }
 
     SplitView {
@@ -146,8 +179,10 @@ Item {
 
         handle: Rectangle {
             implicitWidth: 2
-            color: SplitHandle.pressed ? "#81e889"
-                                       : (SplitHandle.hovered ? Qt.lighter("#c2f4c6", 1.1) : "#5F606A")
+            color: ({
+                    [Styler.ThemeMode.DARK]: "#5F606A",
+                    [Styler.ThemeMode.LIGHT]: "#d1d1e9"
+            })[Styler.themeMode]
         }
 
         Repeater {
@@ -156,11 +191,19 @@ Item {
                 SplitView.preferredWidth: model.size !== 0 ? model.size * root.width : undefined
                 SplitView.fillWidth: (model.size === 0)
                 SplitView.fillHeight: true
-                color: "#222222"
+                visible: model.resizeable
+                color: ({
+                    [Styler.ThemeMode.DARK]: "#222222",
+                    [Styler.ThemeMode.LIGHT]: "#5684AE"
+                })[Styler.themeMode]
                 Text {
                     anchors.centerIn: parent
                     text: model.title
-                    color: "#ffffff"
+                    visible: model.resizeable
+                    color: ({
+                        [Styler.ThemeMode.DARK]: "#ffffff",
+                        [Styler.ThemeMode.LIGHT]: "#fffffe"
+                    })[Styler.themeMode]
                     font.family: concertOne.font.family
                     font.pixelSize: 14
                 }
@@ -215,7 +258,7 @@ Item {
             model: filterProxyModel
         }
         columnWidthProvider: function (column) {
-            return header.itemAt(column).width
+            return header.itemAt(column).visible ? header.itemAt(column).width : 0
         }
 
         ScrollBar.vertical: ScrollBar {
@@ -229,7 +272,8 @@ Item {
             required property bool selected
             // required property bool current
             implicitHeight: 30
-            implicitWidth: header.itemAt(column).width
+            implicitWidth: header.itemAt(column).visible ? header.itemAt(column).width : 0
+            visible: implicitWidth > 0
             property bool isLastColumn: column === header.count - 1
             property int lineNum: lineNumber
             property bool bookmarked: bookmark.highlightLines.includes(lineNum)
@@ -287,8 +331,14 @@ Item {
                 border.width: 1
                 anchors.fill: parent
                 z: -1
-                color: bookmarked ? "#47fd5e5e" : "#272727"
-                border.color: "#272727"
+                color: ({
+                    [Styler.ThemeMode.DARK]: bookmarked ? "#47fd5e5e" : "#272727",
+                    [Styler.ThemeMode.LIGHT]: bookmarked ? "#47fd5e5e" : "transparent"
+                })[Styler.themeMode]
+                border.color: ({
+                    [Styler.ThemeMode.DARK]: "#272727",
+                    [Styler.ThemeMode.LIGHT]: "#cdb2ad"
+                })[Styler.themeMode]
             }
 
             Rectangle {
@@ -309,5 +359,26 @@ Item {
             }
         }
     }
-    
+
+    Component.onCompleted: {
+        if (controller.showLessColumns) {
+            logHeaderModel.setProperty(0, "size", 0)
+            logHeaderModel.setProperty(0, "resizeable", false)
+            logHeaderModel.setProperty(1, "size", 0)
+            logHeaderModel.setProperty(1, "resizeable", false)
+            logHeaderModel.setProperty(2, "size", 0)
+            logHeaderModel.setProperty(2, "resizeable", false)
+            logHeaderModel.setProperty(3, "size", 0.1)
+            logHeaderModel.setProperty(4, "size", 0.9)
+        } else {
+            logHeaderModel.setProperty(0, "size", 0.17)
+            logHeaderModel.setProperty(0, "resizeable", true)
+            logHeaderModel.setProperty(1, "size", 0.1)
+            logHeaderModel.setProperty(1, "resizeable", true)
+            logHeaderModel.setProperty(2, "size", 0.07)
+            logHeaderModel.setProperty(2, "resizeable", true)
+            logHeaderModel.setProperty(3, "size", 0.1)
+            logHeaderModel.setProperty(4, "size", 0)
+        }
+    }
 }

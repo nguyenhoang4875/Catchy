@@ -2,3 +2,4 @@
 /dist
 main.spec
 /components/__pycache__
+*.pyc

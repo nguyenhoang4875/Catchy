@@ -3,6 +3,7 @@ import QtQuick.Controls
 import QtQuick.Controls.Universal 2.12
 import QtQuick.Dialogs
 import QtQuick.Effects
+import Styles
 Popup {
     id: root
     parent: Overlay.overlay
@@ -18,18 +19,27 @@ Popup {
     background: Rectangle {
         id: dialogBg
         anchors.fill: parent
-        color: "#363636"
+        color: ({
+            [Styler.ThemeMode.DARK]: "#2b2b2b",
+            [Styler.ThemeMode.LIGHT]: "#eff0f3"
+        })[Styler.themeMode]
         opacity: 1
         radius: 4
         border.width: 1
-        border.color: "#5f6160"
+        border.color: ({
+            [Styler.ThemeMode.DARK]: "#5f6160",
+            [Styler.ThemeMode.LIGHT]: "#5D21D0"
+        })[Styler.themeMode]
     }
 
     MultiEffect {
         source: dialogBg
         anchors.fill: dialogBg
         blurEnabled: true
-        blur: 0.2
+        blur: ({
+            [Styler.ThemeMode.DARK]: 0.2,
+            [Styler.ThemeMode.LIGHT]: 0.9
+        })[Styler.themeMode]
     }
 
     Image {
@@ -43,7 +53,6 @@ Popup {
         sourceSize.width: 22
         sourceSize.height: 22
         source: "./../assets/images/filter_panel_icon.svg"
-        
     }
 
     Text {
@@ -61,7 +70,10 @@ Popup {
         anchors.topMargin: 5
         anchors.left: icon.right
         anchors.leftMargin: 10
-        color: "#ECEDF5"
+        color: ({
+            [Styler.ThemeMode.DARK]: "#ECEDF5",
+            [Styler.ThemeMode.LIGHT]: "#3F3075"
+        })[Styler.themeMode]
         verticalAlignment: Text.AlignVCenter
         font.family: muktaVaani.font.family
         font.pixelSize: 16
@@ -77,7 +89,10 @@ Popup {
         anchors.leftMargin: 10
         anchors.right: parent.right
         anchors.rightMargin: 10
-        color: "#ECEDF5"
+        color: ({
+            [Styler.ThemeMode.DARK]: "#ECEDF5",
+            [Styler.ThemeMode.LIGHT]: "#3F3075"
+        })[Styler.themeMode]
         verticalAlignment: Text.AlignVCenter
         font.family: muktaVaani.font.family
         font.pixelSize: 13
@@ -98,7 +113,10 @@ Popup {
         }
 
         background: Rectangle {
-            color: "#434342"
+            color: ({
+                [Styler.ThemeMode.DARK]: "#434342",
+                [Styler.ThemeMode.LIGHT]: "#e2dae1"
+            })[Styler.themeMode]
             radius: 4
             border.width: 1
             border.color: "#7e7e7e"
@@ -115,7 +133,10 @@ Popup {
         anchors.leftMargin: 10
         anchors.right: parent.right
         anchors.rightMargin: 10
-        color: "#ECEDF5"
+        color: ({
+            [Styler.ThemeMode.DARK]: "#ECEDF5",
+            [Styler.ThemeMode.LIGHT]: "#3F3075"
+        })[Styler.themeMode]
         verticalAlignment: Text.AlignVCenter
         font.family: muktaVaani.font.family
         font.pixelSize: 13
@@ -136,7 +157,10 @@ Popup {
         }
 
         background: Rectangle {
-            color: "#434342"
+            color: ({
+                [Styler.ThemeMode.DARK]: "#434342",
+                [Styler.ThemeMode.LIGHT]: "#e2dae1"
+            })[Styler.themeMode]
             radius: 4
             border.width: 1
             border.color: "#7e7e7e"
@@ -159,11 +183,17 @@ Popup {
             if (root.type === FilterDetailPanel.Type.Edit) {
                 return filterProfile.color
             } else {
-                return "#ECEDF5 "
+                return ({
+                    [Styler.ThemeMode.DARK]: "#ECEDF5",
+                    [Styler.ThemeMode.LIGHT]: "#3F3075"
+                })[Styler.themeMode]
             }
         }
         background: Rectangle {
-            color: "#434342"
+            color: ({
+                [Styler.ThemeMode.DARK]: "#434342",
+                [Styler.ThemeMode.LIGHT]: "transparent"
+            })[Styler.themeMode]
             radius: 16
             border.width: 1
             border.color: "#7e7e7e"
@@ -200,11 +230,22 @@ Popup {
         anchors.rightMargin: 10
         anchors.bottom: parent.bottom
         anchors.bottomMargin: 5
-        text: "OK"
         font.family: muktaVaani.font.family
+        contentItem: Text {
+            text: "OK"
+            color: ({
+                [Styler.ThemeMode.DARK]: "#ECEDF5",
+                [Styler.ThemeMode.LIGHT]: "#ECEDF5"
+            })[Styler.themeMode]
+            verticalAlignment: Text.AlignVCenter
+            horizontalAlignment: Text.AlignHCenter
+            font.family: muktaVaani.font.family
+            font.bold: true
+            font.pixelSize: 13
+        }
 
         background: Rectangle {
-            color: "#444645"
+            color: Styler.ThemeMode.DARK === Styler.themeMode ? "#444645" : "#7d85ff"
             radius: 4
             border.width: 1
             border.color: "#7f8180"

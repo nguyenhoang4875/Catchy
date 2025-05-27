@@ -1,6 +1,7 @@
 import QtQuick 2.15
 import QtQuick.Controls 2.15
 import QtQuick.Effects
+import Styles
 Item {
     id: root
 
@@ -102,7 +103,10 @@ Item {
                 id: itemBg
                 width: parent.width
                 height: parent.height
-                color: "#b0b696ff"
+                color: ({
+                    [Styler.ThemeMode.LIGHT]: "#07A982",
+                    [Styler.ThemeMode.DARK]: "#b0b696ff",
+                })[Styler.themeMode]
                 radius: 2
                 border.width: 1
                 border.color: "#9fffffff"
@@ -125,7 +129,7 @@ Item {
                 }
 
                 onExited: {
-                    itemBg.color = "#b0b696ff"
+                    itemBg.color = Styler.themeMode === Styler.ThemeMode.LIGHT ? "#07A982" : "#b0b696ff"
                     itemBg.opacity = 0.5
                     detail.close()
                 }
@@ -137,7 +141,10 @@ Item {
                 width: bookmarkList.width * 0.15
                 height: 24
                 text: modelData.line
-                color: "#d4b2f5"
+                color: ({
+                    [Styler.ThemeMode.LIGHT]: "#222875",
+                    [Styler.ThemeMode.DARK]: "#d4b2f5",
+                })[Styler.themeMode]
                 font.pixelSize: 10
                 font.family: concertOne.font.family
                 font.bold: true
@@ -153,7 +160,10 @@ Item {
                 height: 24
                 text: modelData.log
                 clip: true
-                color: "#ffffff"
+                color: ({
+                    [Styler.ThemeMode.LIGHT]: "#181D5A",
+                    [Styler.ThemeMode.DARK]: "#ffffff",
+                })[Styler.themeMode]
                 font.pixelSize: 12
                 anchors.left: bookmarkLine.right
                 font.family: concertOne.font.family

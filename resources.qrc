@@ -7,5 +7,7 @@
         <file>assets/images/filter_icon.png</file>
         <file>assets/images/add_icon.png</file>
         <file>qmls/LoadingScreen.qml</file>
+        <file>styles/Styler.qml</file>
+        <file>styles/qmldir</file>
     </qresource>
 </RCC>

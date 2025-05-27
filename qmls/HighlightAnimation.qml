@@ -1,5 +1,5 @@
 import QtQuick
-
+import Styles
 Item {
     id: root
     function start() {
@@ -10,7 +10,7 @@ Item {
     Rectangle {
         id: fadeRect
         anchors.fill: parent
-        color: Qt.rgba(240, 241, 168, 0.43)
+        color: "#80ffd5"
         opacity: 0.0
         z: -1
     }
