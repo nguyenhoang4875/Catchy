@@ -242,7 +242,7 @@ ApplicationWindow {
 
             TextInput {
                 id: searchInput
-                width: menuBar.width / 3
+                width: menuBar.width / 2
                 height: 25
                 anchors.verticalCenter: menuBar.verticalCenter
                 anchors.horizontalCenter: menuBar.horizontalCenter
@@ -379,6 +379,14 @@ ApplicationWindow {
                     [Styler.ThemeMode.LIGHT]: "#B7C9E2"
                 })[Styler.themeMode]
                 z: -1
+            }
+        }
+
+        Shortcut {
+            sequence: StandardKey.Find
+            onActivated: {
+                searchInput.forceActiveFocus()
+                searchInput.selectAll()
             }
         }
 
