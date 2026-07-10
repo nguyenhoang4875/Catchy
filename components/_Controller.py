@@ -12,6 +12,7 @@ from components._Bookmark import Bookmark
 from components._Toast import Toast, TOAST
 from components._Helper import *
 from components._SortFilterProxyModel import SortFilterProxyModel
+from components._Defines import SOURCE_FILE, SOURCE_LOGCAT, SOURCE_SSH
 import pyperclip
 import re
 import os
@@ -22,6 +23,8 @@ import subprocess
 import datetime
 import asyncio
 import asyncssh
+import shutil
+from collections import deque
 from pathlib import Path
 ROOT_FOLDER     = "C:/QtLogViewer"
 LINE_NUMBER     = "line_number"
@@ -36,6 +39,7 @@ class Controller(QObject):
     showNotification            = Signal(str, arguments=["message"])
     themeChanged                = Signal()
     showLessColumnsChanged      = Signal()
+    logSourceChanged            = Signal()
     def __init__(self, parent=None):
         super().__init__(parent)
         self.create()
@@ -49,6 +53,8 @@ class Controller(QObject):
         self._streamLogFileThread   = QThread()
         self._connRDeviceThread     = QThread()
         self._pingHostThread        = QThread()
+        self._logcatThread          = QThread()
+        self._logcatProcess         = None
         self._showLoadingScreen     = False
         self._searchLog             = SearchLog()
         self._logViewReady          = False
@@ -61,23 +67,40 @@ class Controller(QObject):
         self.filterLog.create(filterPath)
         self._originalFilters = self.filterLog.originalFilters()
         self._logDict           = {}
+        self._nextLineNum       = 0
         self._detailsText       = ""
         self._highlightLineNum  = -1
+        self._logcatBuffer      = deque()
+        self._streamBuffer      = deque()
+
+        self._logcatFlushTimer = QTimer(self)
+        self._logcatFlushTimer.setInterval(100)
+        self._logcatFlushTimer.timeout.connect(self._flushLogcatBuffer)
+
+        self._streamFlushTimer = QTimer(self)
+        self._streamFlushTimer.setInterval(100)
+        self._streamFlushTimer.timeout.connect(self._flushStreamBuffer)
         
         
         self._streamingFilePath = ""
         self._theme = self._configs.getConfigs().get("theme", "light")
         self._showLessColumns = self._configs.getConfigs().get("showLessColumns", False)
+        self._logSource = self._configs.getConfigs().get("logSource", SOURCE_LOGCAT)
         
         atexit.register(self.cleanup)
+
+        if self._logSource == SOURCE_LOGCAT:
+            self.startLogcat()
         pass
     
     def cleanup(self):
         # Code to execute when the instance is destroyed
         print("Controller instance is being destroyed")
         self.remoteDeviceManager.streaming = False
+        self._stopLogcatProcess()
         self._stop_thread(self._loadLogFileThread)
         self._stop_thread(self._streamLogFileThread)
+        self._stop_thread(self._logcatThread)
         
         if (self.remoteDeviceManager.connectedDevice):
             self.requestDisconnectFromDevice()
@@ -145,6 +168,126 @@ class Controller(QObject):
         self._configs.saveConfig("showLessColumns", val)
         self.showLessColumnsChanged.emit()
 
+    @Property(str, notify=logSourceChanged)
+    def logSource(self):
+        return self._logSource
+
+    @logSource.setter
+    def logSource(self, val):
+        if self._logSource == val:
+            return
+        # Stop current source
+        if self._logSource == SOURCE_LOGCAT:
+            self._stopLogcatProcess()
+        elif self._logSource == SOURCE_SSH:
+            self.remoteDeviceManager.streaming = False
+        self._logSource = val
+        self._configs.saveConfig("logSource", val)
+        self.logSourceChanged.emit()
+        # Auto-start new source
+        if val == SOURCE_LOGCAT:
+            self.startLogcat()
+
+    @Slot(str)
+    def setLogSource(self, source):
+        self.logSource = source
+
+    @Slot()
+    def startLogcat(self):
+        print("startLogcat")
+        if self._logcatThread.isRunning():
+            return
+        if not shutil.which("adb"):
+            self.showNotification.emit("adb not found in PATH. Please install Android SDK Platform Tools.")
+            self._logSource = SOURCE_FILE
+            self._configs.saveConfig("logSource", SOURCE_FILE)
+            self.logSourceChanged.emit()
+            return
+        self.logviewModel.updateData([])
+        self._logDict = {}
+        self._nextLineNum = 0
+        self._logcatBuffer.clear()
+        self.logViewReady = True
+        self.helper.autoScrollDown = True
+        self._logcatFlushTimer.start()
+        self._logcatWorker = Worker(self._runLogcat)
+        self._logcatWorker.moveToThread(self._logcatThread)
+        self._logcatWorker.taskCompleted.connect(self._onLogcatStopped)
+        self._logcatThread.started.connect(self._logcatWorker.run)
+        self._logcatThread.start()
+        self.toast.show(TOAST.INFO, "Reading Android logcat...")
+
+    @Slot()
+    def stopLogcat(self):
+        print("stopLogcat")
+        self._stopLogcatProcess()
+        self.helper.autoScrollDown = False
+
+    def _stopLogcatProcess(self):
+        self._logcatFlushTimer.stop()
+        if self._logcatProcess and self._logcatProcess.poll() is None:
+            self._logcatProcess.terminate()
+            try:
+                self._logcatProcess.wait(timeout=3)
+            except Exception:
+                self._logcatProcess.kill()
+        self._logcatProcess = None
+        self._flushLogcatBuffer()  # drain remaining
+        if self._logcatThread.isRunning():
+            self._logcatThread.quit()
+            self._logcatThread.wait()
+
+    def _runLogcat(self):
+        try:
+            self._logcatProcess = subprocess.Popen(
+                ["adb", "logcat", "-v", "threadtime"],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+                text=True,
+                encoding="utf-8",
+                errors="replace"
+            )
+            colors = self.filterLog.colors()
+            for line in self._logcatProcess.stdout:
+                if self._logcatProcess.poll() is not None:
+                    break
+                result = self.logviewModel.processLineDataLogcat(line.rstrip("\n"), colors)
+                if result[0]:
+                    self._logcatBuffer.append(result[1])
+        except Exception as e:
+            print(f"logcat error: {e}")
+
+    def _flushLogcatBuffer(self):
+        if not self._logcatBuffer:
+            return
+        entries = []
+        while self._logcatBuffer:
+            entries.append(self._logcatBuffer.popleft())
+        self._assignLineNums(entries)
+        self._batchInsert(entries)
+
+    def _assignLineNums(self, entries):
+        """Assign sequential line numbers and update _logDict. O(batch_size)."""
+        for entry in entries:
+            entry[LINE_NUMBER] = self._nextLineNum
+            self._logDict[self._nextLineNum] = entry
+            self._nextLineNum += 1
+
+    def _batchInsert(self, entries):
+        """Insert entries, trimming oldest rows if over MAX_LOG_ROWS."""
+        from components._LogViewModel import MAX_LOG_ROWS
+        current = self.logviewModel.rowCount()
+        total = current + len(entries)
+        if total > MAX_LOG_ROWS:
+            excess = total - MAX_LOG_ROWS
+            self.logviewModel.trimRows(excess)
+        self.logviewModel.addRows(entries)
+
+    def _onLogcatStopped(self, result):
+        self._logcatThread.quit()
+        self._logcatThread.wait()
+        print("logcat stopped")
+
     @Slot(int)
     def showLogDetails(self, line):
         print("showLogDetails: ", line)
@@ -199,8 +342,8 @@ class Controller(QObject):
         self._loadLogFileThread.wait()
         (parsed_log, parsed_dict) = result
         self._logDict = parsed_dict
+        self._nextLineNum = len(parsed_dict)
         self.logviewModel.updateData(parsed_log)
-
         self.logViewReady = True
         self.loadLogFileCompleted.emit()
         
@@ -219,65 +362,75 @@ class Controller(QObject):
         self._loadLogFileThread.wait()
         (parsed_log, parsed_dict) = result
         self._logDict = parsed_dict
+        self._nextLineNum = len(parsed_dict)
         self.logviewModel.updateData(parsed_log)
         self.logViewReady = True
         self.loadLogFileCompleted.emit()
-        
         self.startStreamingLogFile()
-        pass
     
     def startStreamingLogFile(self):
         print("startStreamingLogFile: ", self._streamingFilePath)
+        self._streamFlushTimer.start()
         self.worker = None
         self.worker = Worker(self.streamFile, self._streamingFilePath)
         self.worker.moveToThread(self._streamLogFileThread)
         self.worker.taskCompleted.connect(self.onStreamFileStopped)
         self._streamLogFileThread.started.connect(self.worker.run)
         self._streamLogFileThread.start()
-    
+
     def streamFile(self, file_path):
         print("streamFile: ", file_path)
         try:
             self.remoteDeviceManager.streaming = True
-            # Open the log file and seek to the end
             with open(file_path, 'r', encoding='utf-8') as file:
-                # Move the file pointer to the end of the file
                 file.seek(0, os.SEEK_END)
-                
                 while self.remoteDeviceManager.streaming:
-                    # Read new lines that have been added
-                    new_line = file.readline()
-                    if new_line:
-                        self.addLineLog(new_line)  # Process the new line
+                    lines = []
+                    while True:
+                        new_line = file.readline()
+                        if new_line:
+                            lines.append(new_line)
+                        else:
+                            break
+                    if lines:
+                        colors = self.filterLog.colors()
+                        for line in lines:
+                            result = self.logviewModel.processLineData(line, colors)
+                            if result[0]:
+                                self._streamBuffer.append(result[1])
                     else:
-                        # Sleep for a short time if no new lines are available
                         time.sleep(0.1)
         except Exception as e:
             print(f"Error while watching log file: {e}")
-        pass
-    
+
     @Slot()
     def onStreamFileStopped(self):
         print("onStreamFileStopped")
         self.remoteDeviceManager.streaming = False
+        self._streamFlushTimer.stop()
+        self._flushStreamBuffer()  # drain remaining
         self._streamLogFileThread.quit()
         self._streamLogFileThread.wait()
-        pass
-    
+
+    def _flushStreamBuffer(self):
+        if not self._streamBuffer:
+            return
+        entries = []
+        while self._streamBuffer:
+            entries.append(self._streamBuffer.popleft())
+        self._assignLineNums(entries)
+        self._batchInsert(entries)
+
     def addLineLog(self, line):
+        """Legacy single-line insert (kept for compatibility)."""
         (isSuccess, log_entry) = self.logviewModel.processLineData(line, self.filterLog.colors())
         if isSuccess:
-            try:
-                maxLineNum = max(self._logDict.keys())
-            except ValueError:
-                maxLineNum = -1
-            lineNum = maxLineNum + 1
-            log_entry[LINE_NUMBER] = lineNum
+            log_entry[LINE_NUMBER] = self._nextLineNum
+            self._logDict[self._nextLineNum] = log_entry
+            self._nextLineNum += 1
             self.logviewModel.addRow(log_entry)
-            self._logDict[lineNum] = log_entry
         else:
             print(f"Error processing line: {line}")
-        pass
 
     # FILER **********************************************************
     @Slot()
@@ -484,7 +637,8 @@ class Controller(QObject):
                             "remoteLogPath": "/var/log/messages"
                         }
                     ]
-                }
+                },
+                "logSource": "logcat"
             }
             with open(file_path, 'a') as file:
                 json.dump(config_data, file, indent=4)
@@ -801,10 +955,12 @@ class Controller(QObject):
     @Slot()
     def clearLog(self):
         print("clearLog")
+        self._logcatBuffer.clear()
+        self._streamBuffer.clear()
         self.logviewModel.updateData([])
         self._logDict = {}
+        self._nextLineNum = 0
         self.toast.show(TOAST.INFO, "Log cleared")
-        pass
     
     @Slot(dict, int)
     def changeRemoteDeviceInfo(self, device, index):

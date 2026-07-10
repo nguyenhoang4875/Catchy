@@ -1,6 +1,11 @@
 from PySide6.QtCore import QObject, Slot
 from pathlib import Path
 
+# Log source constants
+SOURCE_FILE     = "file"
+SOURCE_LOGCAT   = "logcat"
+SOURCE_SSH      = "ssh"
+
 
 class Defines(QObject):
     def __init__(self, root, parent=None):

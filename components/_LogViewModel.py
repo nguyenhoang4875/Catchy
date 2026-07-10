@@ -29,6 +29,19 @@ log_pattern = re.compile(
     r'(?P<message>.*)'
 )
 
+# Android logcat format: MM-DD HH:MM:SS.mmm  PID  TID LEVEL TAG: message
+logcat_pattern = re.compile(
+    r'(?P<datetime>\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d+)\s+'
+    r'(?P<timestamp>\d+)\s+'
+    r'\d+\s+'
+    r'(?P<log_level>[VDIWEFS])\s+'
+    r'(?P<process_name>[^:]+)\s*:\s*'
+    r'(?P<message>.*)'
+)
+
+
+
+MAX_LOG_ROWS = 50_000
 
 class LogModel(QAbstractTableModel):
     ColumnDatetime      = 0
@@ -38,14 +51,14 @@ class LogModel(QAbstractTableModel):
     ColumnMessage       = 4
     CountOfColumns      = 5
 
+    # Ordered list of dict keys matching column indices — avoids if-elif in data()
+    _DISPLAY_COLS = [DATE_TIME, TIME_STAMP, LOG_LEVEL, PROCESS_NAME, MESSAGE]
+
     def __init__(self, logData, parent=None):
         super().__init__(parent)
         self._column_names = [COL_DATETIME, COL_TIMESTAMP, COL_LOGLEVEL, COL_PROCESSNAME, COL_MESSAGE]
         self._controller = None
-        if logData is not None:
-            self._log_data = logData
-        else:
-            self._log_data = []
+        self._log_data = list(logData) if logData is not None else []
 
     def setController(self, controller):
         self._controller = controller
@@ -91,6 +104,19 @@ class LogModel(QAbstractTableModel):
             return (True, log_entry)
         else:
             return (False, None)
+
+    def processLineDataLogcat(self, lineData, colors):
+        match = logcat_pattern.match(lineData)
+        if match:
+            log_entry = match.groupdict()
+            log_entry[PROCESS_NAME] = log_entry[PROCESS_NAME].strip()
+            if log_entry[PROCESS_NAME] in colors.keys():
+                log_entry[COLOR] = colors[log_entry[PROCESS_NAME]]
+            else:
+                log_entry[COLOR] = LINE_DEFAULT_COLOR
+            return (True, log_entry)
+        else:
+            return (False, None)
             
         
     def rowCount(self, parent=QModelIndex()):
@@ -102,68 +128,57 @@ class LogModel(QAbstractTableModel):
     def data(self, index, role=Qt.DisplayRole):
         if not index.isValid():
             return None
-
         row = index.row()
         if not 0 <= row < len(self._log_data):
             return None
-        
+        entry = self._log_data[row]
         if role == Qt.UserRole:
-            return self._log_data[index.row()][LINE_NUMBER]
-        
+            return entry[LINE_NUMBER]
         if role == Qt.DecorationRole:
-            return self._log_data[index.row()][COLOR]
-
+            return entry[COLOR]
         if role == Qt.DisplayRole:
-            datetime    = self._log_data[index.row()][DATE_TIME]
-            timestamp   = self._log_data[index.row()][TIME_STAMP]
-            loglevel    = self._log_data[index.row()][LOG_LEVEL]
-            processname = self._log_data[index.row()][PROCESS_NAME]
-            message     = self._log_data[index.row()][MESSAGE]
-
-            if index.column() == self.ColumnDatetime:
-                return datetime
-            elif index.column() == self.ColumnTimeStamp:
-                return timestamp
-            elif index.column() == self.ColumnLogLevel:
-                return loglevel
-            elif index.column() == self.ColumnProcessName:
-                return processname
-            elif index.column() == self.ColumnMessage:
-                return message
-            
+            col = index.column()
+            if 0 <= col < self.CountOfColumns:
+                return entry[self._DISPLAY_COLS[col]]
         return None
 
     def headerData(self, section, orientation, role=Qt.DisplayRole):
         """ Set the headers to be displayed. """
         if role != Qt.DisplayRole:
             return None
-        
-        if orientation == Qt.Horizontal:
-            if section == self.ColumnDatetime:
-                return COL_DATETIME
-            elif section == self.ColumnTimeStamp:
-                return COL_TIMESTAMP
-            elif section == self.ColumnLogLevel:
-                return COL_LOGLEVEL
-            elif section == self.ColumnProcessName:
-                return COL_PROCESSNAME
-            elif section == self.ColumnMessage:
-                return COL_MESSAGE
+        if orientation == Qt.Horizontal and 0 <= section < len(self._column_names):
+            return self._column_names[section]
         return None
 
     def roleNames(self):
         return {Qt.DisplayRole: b"display", Qt.DecorationRole: b"decoration", Qt.UserRole: b"lineNumber"}
     
+    def addRows(self, entries):
+        """Batch-insert multiple rows at the end. One beginInsertRows/endInsertRows call."""
+        if not entries:
+            return
+        first = len(self._log_data)
+        last = first + len(entries) - 1
+        self.beginInsertRows(QModelIndex(), first, last)
+        self._log_data.extend(entries)
+        self.endInsertRows()
+
     def addRow(self, lineData, index=QModelIndex()):
-        
-        """ Insert a row into the model. """
+        """ Insert a single row at the end of the model. """
         last_row = len(self._log_data)
         self.beginInsertRows(QModelIndex(), last_row, last_row)
-
-        self._log_data.insert(last_row, lineData)
-
+        self._log_data.append(lineData)
         self.endInsertRows()
         return True
+
+    def trimRows(self, count):
+        """Remove count rows from the front to enforce a max row cap."""
+        if count <= 0:
+            return
+        count = min(count, len(self._log_data))
+        self.beginRemoveRows(QModelIndex(), 0, count - 1)
+        del self._log_data[:count]
+        self.endRemoveRows()
 
     def setRowColor(self, row, color):
         self._log_data[row][COLOR] = color

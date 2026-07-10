@@ -156,8 +156,48 @@ ApplicationWindow {
             }
 
             Button {
-                id: clearLogBtn
+                id: logcatControlBtn
                 anchors.left: streamingControlBtn.right
+                width: 40
+                height: 30
+                hoverEnabled: true
+                padding: 0
+                background: Rectangle {
+                    color: controller.logSource === "logcat" ? "#1a3a1a" : "transparent"
+                    radius: 4
+                    width: logcatControlBtn.width - 10
+                    height: logcatControlBtn.height - 6
+                    anchors.centerIn: logcatControlBtn
+                }
+                ToolTip.visible: hovered
+                ToolTip.text: controller.logSource === "logcat" ? "Stop logcat" : "Start logcat"
+                ToolTip.delay: 500
+
+                Text {
+                    anchors.centerIn: parent
+                    text: "ADB"
+                    font.pixelSize: 10
+                    font.bold: true
+                    color: controller.logSource === "logcat" ? "#00ff55"
+                                                            : ({
+                                                                [Styler.ThemeMode.DARK]: "#ffffff",
+                                                                [Styler.ThemeMode.LIGHT]: "#1F0954"
+                                                              })[Styler.themeMode]
+                }
+
+                onClicked: {
+                    if (controller.logSource === "logcat") {
+                        controller.stopLogcat()
+                        controller.setLogSource("file")
+                    } else {
+                        controller.setLogSource("logcat")
+                    }
+                }
+            }
+
+            Button {
+                id: clearLogBtn
+                anchors.left: logcatControlBtn.right
                 width: 40
                 height: 30
                 // hoverEnabled: true
