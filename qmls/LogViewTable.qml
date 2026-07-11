@@ -336,7 +336,7 @@ Item {
                 anchors.fill: parent
                 horizontalAlignment: isLastColumn ? Text.AlignLeft : Text.AlignHCenter
                 verticalAlignment: Text.AlignVCenter
-                color: root.logTextColor
+                color: controller.showLogColors && decoration ? decoration : root.logTextColor
                 font.family: muktaVaani.font.family
                 font.pointSize: 10
                 // wrapMode: Text.WordWrap

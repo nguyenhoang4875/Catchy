@@ -117,6 +117,27 @@ ApplicationWindow {
                         Text {
                             width: contentWidth
                             height: parent.height
+                            text: controller.showLogColors ? "Disable Color" : "Enable Color"
+                            anchors.left: parent.left
+                            anchors.leftMargin: parent.width / 3
+                            color: "#ECEDF5"
+                            verticalAlignment: Text.AlignVCenter
+                            font.family: muktaVaani.font.family
+                        }
+
+                        onClicked: {
+                            controller.showLogColors = !controller.showLogColors
+                            fileMenu.close()
+                        }
+                    }
+
+                    Button {
+                        width: parent.width
+                        height: 26
+
+                        Text {
+                            width: contentWidth
+                            height: parent.height
                             text: "Settings"
                             anchors.left: parent.left
                             anchors.leftMargin: parent.width / 3

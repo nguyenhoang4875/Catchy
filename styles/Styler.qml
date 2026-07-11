@@ -18,4 +18,5 @@ Item {
     onShowLessColumnsChanged: {
         controller.showLessColumns = showLessColumns;
     }
+
 }

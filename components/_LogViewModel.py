@@ -16,7 +16,15 @@ COL_PROCESSNAME = "Process Name"
 COL_MESSAGE     = "Message"
 
 LINE_NUMBER     = "line_number"
-LINE_DEFAULT_COLOR = "#B6B5B5"
+
+LOG_LEVEL_COLORS = {
+    "V": "#4E7D96 ",
+    "D": "#0086D6",
+    "I": "#108528",
+    "W": "#C47C00",
+    "E": "#D32F2F",
+    "F": "#A222B2",
+}
 
 ROOT_FOLDER = "C:/QtLogViewer"
 
@@ -63,6 +71,12 @@ class LogModel(QAbstractTableModel):
     def setController(self, controller):
         self._controller = controller
 
+    def _color_for_entry(self, log_entry, colors):
+        process_color = colors.get(log_entry[PROCESS_NAME])
+        if process_color:
+            return process_color
+        return LOG_LEVEL_COLORS.get(log_entry.get(LOG_LEVEL, ""), "")
+
     def loadLogFile(self, file_path, colors):
         print("loadLogFile: ", file_path)
         log_file_path = file_path
@@ -76,11 +90,7 @@ class LogModel(QAbstractTableModel):
                     if match:
                         log_entry = match.groupdict()
                         log_entry[LINE_NUMBER]  = lineCount
-
-                        if log_entry[PROCESS_NAME] in colors.keys():
-                            log_entry[COLOR] = colors[log_entry[PROCESS_NAME]]
-                        else:
-                            log_entry[COLOR] = LINE_DEFAULT_COLOR
+                        log_entry[COLOR] = self._color_for_entry(log_entry, colors)
 
                         parsed_dict[lineCount] = log_entry
                         parsed_log.append(log_entry)
@@ -97,10 +107,7 @@ class LogModel(QAbstractTableModel):
         match = log_pattern.match(lineData)
         if match:
             log_entry = match.groupdict()
-            if log_entry[PROCESS_NAME] in colors.keys():
-                log_entry[COLOR] = colors[log_entry[PROCESS_NAME]]
-            else:
-                log_entry[COLOR] = LINE_DEFAULT_COLOR
+            log_entry[COLOR] = self._color_for_entry(log_entry, colors)
             return (True, log_entry)
         else:
             return (False, None)
@@ -110,10 +117,7 @@ class LogModel(QAbstractTableModel):
         if match:
             log_entry = match.groupdict()
             log_entry[PROCESS_NAME] = log_entry[PROCESS_NAME].strip()
-            if log_entry[PROCESS_NAME] in colors.keys():
-                log_entry[COLOR] = colors[log_entry[PROCESS_NAME]]
-            else:
-                log_entry[COLOR] = LINE_DEFAULT_COLOR
+            log_entry[COLOR] = self._color_for_entry(log_entry, colors)
             return (True, log_entry)
         else:
             return (False, None)
@@ -199,4 +203,4 @@ class LogModel(QAbstractTableModel):
     def resetColorForProcessName(self, processName):
         for row in range(self.rowCount()):
             if processName == self._log_data[row][PROCESS_NAME]:
-                self.setRowColor(row, LINE_DEFAULT_COLOR)
+                self.setRowColor(row, self._color_for_entry(self._log_data[row], {}))

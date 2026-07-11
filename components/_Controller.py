@@ -39,6 +39,7 @@ class Controller(QObject):
     showNotification            = Signal(str, arguments=["message"])
     themeChanged                = Signal()
     showLessColumnsChanged      = Signal()
+    showLogColorsChanged        = Signal()
     logSourceChanged            = Signal()
     adbDevicesAvailableChanged  = Signal()
     def __init__(self, parent=None):
@@ -86,6 +87,7 @@ class Controller(QObject):
         self._streamingFilePath = ""
         self._theme = self._configs.getConfigs().get("theme", "light")
         self._showLessColumns = self._configs.getConfigs().get("showLessColumns", False)
+        self._showLogColors = self._configs.getConfigs().get("showLogColors", True)
         self._logSource = self._configs.getConfigs().get("logSource", SOURCE_LOGCAT)
         self._hasAdbDevices = False
 
@@ -175,6 +177,16 @@ class Controller(QObject):
         self._showLessColumns = val
         self._configs.saveConfig("showLessColumns", val)
         self.showLessColumnsChanged.emit()
+
+    @Property(bool, notify=showLogColorsChanged)
+    def showLogColors(self):
+        return self._showLogColors
+
+    @showLogColors.setter
+    def showLogColors(self, val):
+        self._showLogColors = val
+        self._configs.saveConfig("showLogColors", val)
+        self.showLogColorsChanged.emit()
 
     @Property(str, notify=logSourceChanged)
     def logSource(self):
