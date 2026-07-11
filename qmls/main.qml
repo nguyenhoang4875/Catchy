@@ -138,27 +138,39 @@ ApplicationWindow {
                 background: Rectangle {
                     color: "transparent"
                 }
-                enabled: controller.hasAdbDevices || controller.logSource === "logcat"
+                enabled: controller.hasAdbDevices && controller.logSource !== "logcat"
                 padding: 0
-                icon.source: remoteDeviceManager.streaming ? "./../assets/images/pause_streaming.svg" : "./../assets/images/start_streaming.svg"
-                icon.color: !enabled ? "#8c888888" : remoteDeviceManager.streaming ? "#00ff55" 
-                                                                                    : ({
-                                                                                        [Styler.ThemeMode.DARK]: "#ffffff",
-                                                                                        [Styler.ThemeMode.LIGHT]: "#1F0954"
-                                                                                    })[Styler.themeMode]
+                icon.source: "./../assets/images/start_streaming.svg"
+                icon.color: !enabled ? "#8c888888" : ({
+                    [Styler.ThemeMode.DARK]: "#ffffff",
+                    [Styler.ThemeMode.LIGHT]: "#1F0954"
+                })[Styler.themeMode]
+                onClicked: controller.setLogSource("logcat")
+            }
+
+            Button {
+                id: stopStreamingBtn
+                anchors.left: streamingControlBtn.right
+                width: 40
+                height: 30
+                hoverEnabled: true
+                font.family: muktaVaani.font.family
+                background: Rectangle {
+                    color: "transparent"
+                }
+                enabled: controller.logSource === "logcat"
+                padding: 0
+                icon.source: "./../assets/images/stop_stream.svg"
+                icon.color: !enabled ? "#8c888888" : "#d94c4c"
                 onClicked: {
-                    if (controller.logSource === "logcat") {
-                        controller.stopLogcat()
-                        controller.setLogSource("file")
-                    } else {
-                        controller.setLogSource("logcat")
-                    }
+                    controller.stopLogcat()
+                    controller.setLogSource("file")
                 }
             }
 
             Button {
                 id: clearLogBtn
-                anchors.left: streamingControlBtn.right
+                anchors.left: stopStreamingBtn.right
                 width: 40
                 height: 30
                 // hoverEnabled: true
