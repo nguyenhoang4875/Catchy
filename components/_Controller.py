@@ -40,6 +40,7 @@ class Controller(QObject):
     themeChanged                = Signal()
     showLessColumnsChanged      = Signal()
     logSourceChanged            = Signal()
+    adbDevicesAvailableChanged  = Signal()
     def __init__(self, parent=None):
         super().__init__(parent)
         self.create()
@@ -86,6 +87,13 @@ class Controller(QObject):
         self._theme = self._configs.getConfigs().get("theme", "light")
         self._showLessColumns = self._configs.getConfigs().get("showLessColumns", False)
         self._logSource = self._configs.getConfigs().get("logSource", SOURCE_LOGCAT)
+        self._hasAdbDevices = False
+
+        self._adbCheckTimer = QTimer(self)
+        self._adbCheckTimer.setInterval(3000)
+        self._adbCheckTimer.timeout.connect(self.refreshAdbDeviceAvailability)
+        self._adbCheckTimer.start()
+        self.refreshAdbDeviceAvailability()
         
         atexit.register(self.cleanup)
 
@@ -192,9 +200,41 @@ class Controller(QObject):
     def setLogSource(self, source):
         self.logSource = source
 
+    @Property(bool, notify=adbDevicesAvailableChanged)
+    def hasAdbDevices(self):
+        return self._hasAdbDevices
+
+    @hasAdbDevices.setter
+    def hasAdbDevices(self, value):
+        if self._hasAdbDevices == value:
+            return
+        self._hasAdbDevices = value
+        self.adbDevicesAvailableChanged.emit()
+
+    @Slot()
+    def refreshAdbDeviceAvailability(self):
+        if not shutil.which("adb"):
+            self.hasAdbDevices = False
+            return
+
+        try:
+            result = subprocess.run(
+                ["adb", "devices"],
+                capture_output=True,
+                text=True,
+                timeout=2,
+                creationflags=subprocess.CREATE_NO_WINDOW
+            )
+            lines = result.stdout.splitlines()[1:]
+            has_devices = any("\tdevice" in line for line in lines)
+            self.hasAdbDevices = has_devices
+        except Exception:
+            self.hasAdbDevices = False
+
     @Slot()
     def startLogcat(self):
         print("startLogcat")
+        self.refreshAdbDeviceAvailability()
         if self._logcatThread.isRunning():
             return
         if not shutil.which("adb"):

@@ -138,7 +138,7 @@ ApplicationWindow {
                 background: Rectangle {
                     color: "transparent"
                 }
-                enabled: remoteDeviceManager.hasConnection
+                enabled: controller.hasAdbDevices || controller.logSource === "logcat"
                 padding: 0
                 icon.source: remoteDeviceManager.streaming ? "./../assets/images/pause_streaming.svg" : "./../assets/images/start_streaming.svg"
                 icon.color: !enabled ? "#8c888888" : remoteDeviceManager.streaming ? "#00ff55" 
@@ -146,45 +146,6 @@ ApplicationWindow {
                                                                                         [Styler.ThemeMode.DARK]: "#ffffff",
                                                                                         [Styler.ThemeMode.LIGHT]: "#1F0954"
                                                                                     })[Styler.themeMode]
-                onClicked: {
-                    if (remoteDeviceManager.streaming) {
-                        controller.stopStreaming()
-                    } else {
-                        controller.startStreaming()
-                    }
-                }
-            }
-
-            Button {
-                id: logcatControlBtn
-                anchors.left: streamingControlBtn.right
-                width: 40
-                height: 30
-                hoverEnabled: true
-                padding: 0
-                background: Rectangle {
-                    color: controller.logSource === "logcat" ? "#1a3a1a" : "transparent"
-                    radius: 4
-                    width: logcatControlBtn.width - 10
-                    height: logcatControlBtn.height - 6
-                    anchors.centerIn: logcatControlBtn
-                }
-                ToolTip.visible: hovered
-                ToolTip.text: controller.logSource === "logcat" ? "Stop logcat" : "Start logcat"
-                ToolTip.delay: 500
-
-                Text {
-                    anchors.centerIn: parent
-                    text: "ADB"
-                    font.pixelSize: 10
-                    font.bold: true
-                    color: controller.logSource === "logcat" ? "#00ff55"
-                                                            : ({
-                                                                [Styler.ThemeMode.DARK]: "#ffffff",
-                                                                [Styler.ThemeMode.LIGHT]: "#1F0954"
-                                                              })[Styler.themeMode]
-                }
-
                 onClicked: {
                     if (controller.logSource === "logcat") {
                         controller.stopLogcat()
@@ -197,7 +158,7 @@ ApplicationWindow {
 
             Button {
                 id: clearLogBtn
-                anchors.left: logcatControlBtn.right
+                anchors.left: streamingControlBtn.right
                 width: 40
                 height: 30
                 // hoverEnabled: true
