@@ -26,9 +26,9 @@ ApplicationWindow {
             id: mainBg
             color: ({
                 [Styler.ThemeMode.DARK]: "#454545",
-                [Styler.ThemeMode.LIGHT]: "#D8DCD6"
+                [Styler.ThemeMode.LIGHT]: "#EEF2F7"
             })[Styler.themeMode]
-            opacity: 0.5
+            opacity: 1.0
             z: -100
             anchors.fill: root
         }
@@ -306,14 +306,14 @@ ApplicationWindow {
 
             Button {
                 id: themeBtn
-                anchors.right: author.left
+                anchors.right: parent.right
                 anchors.rightMargin: 10
                 width: 40
                 height: 30
                 hoverEnabled: true
                 icon.source: ({
-                    [Styler.ThemeMode.DARK]: "./../assets/images/dark_theme.svg",
-                    [Styler.ThemeMode.LIGHT]: "./../assets/images/light_theme.svg"
+                    [Styler.ThemeMode.DARK]: "./../assets/images/light_theme.svg",
+                    [Styler.ThemeMode.LIGHT]: "./../assets/images/dark_theme.svg"
                 })[Styler.themeMode]
 
                 icon.color: ({
@@ -354,29 +354,12 @@ ApplicationWindow {
                 }
             }
 
-            Text {
-                id: author
-                anchors.right: parent.right
-                verticalAlignment: Text.AlignBottom
-                height: 30
-                width: 120
-                text: "by @phi.nguyen"
-                font.pixelSize: 14
-                font.family: moiraiOne.font.family
-                color: ({
-                    [Styler.ThemeMode.DARK]: "#ffffff",
-                    [Styler.ThemeMode.LIGHT]: "#000133"
-                })[Styler.themeMode]
-                antialiasing: true
-                font.bold: true
-            }
-
             Rectangle {
                 id: menuBarBg
                 anchors.fill: parent
                 color: ({
                     [Styler.ThemeMode.DARK]: "#303030",
-                    [Styler.ThemeMode.LIGHT]: "#B7C9E2"
+                    [Styler.ThemeMode.LIGHT]: "#AFC0D8"
                 })[Styler.themeMode]
                 z: -1
             }

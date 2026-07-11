@@ -394,12 +394,12 @@ Item {
                 id: filterTabBg
                 anchors.fill: parent
                 color: "transparent"
-                border.width: 1
+                border.width: 1.2
                 border.color: ({
-                    [Styler.ThemeMode.LIGHT]:   "#ffffff",
+                    [Styler.ThemeMode.LIGHT]:   "#7C92A8",
                     [Styler.ThemeMode.DARK]:    "#6d6d6d"
                 })[Styler.themeMode]
-                opacity: 0.4
+                opacity: 0.7
                 z: 1
             }
         }
@@ -409,9 +409,12 @@ Item {
                 id: discoverTabBg
                 anchors.fill: parent
                 color: "transparent"
-                border.width: 1
-                border.color: "#6d6d6d"
-                opacity: 0.4
+                border.width: 1.2
+                border.color: ({
+                    [Styler.ThemeMode.LIGHT]:   "#7C92A8",
+                    [Styler.ThemeMode.DARK]:    "#6d6d6d"
+                })[Styler.themeMode]
+                opacity: 0.7
                 z: -1
             }
 
@@ -436,9 +439,12 @@ Item {
                 id: remoteTabBg
                 anchors.fill: parent
                 color: "transparent"
-                border.width: 1
-                border.color: "#6d6d6d"
-                opacity: 0.4
+                border.width: 1.2
+                border.color: ({
+                    [Styler.ThemeMode.LIGHT]:   "#7C92A8",
+                    [Styler.ThemeMode.DARK]:    "#6d6d6d"
+                })[Styler.themeMode]
+                opacity: 0.7
                 z: -1
             }
 
