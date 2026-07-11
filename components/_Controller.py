@@ -495,6 +495,57 @@ class Controller(QObject):
             self._loadLogFileThread.started.connect(self.worker.run)
             self._loadLogFileThread.start()
 
+    @Slot()
+    def saveLogFile(self):
+        print("saveLogFile")
+        # Generate default filename with date_time format
+        current_time = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        default_filename = f"{current_time}.log"
+        
+        file_dialog = QFileDialog()
+        file_dialog.setNameFilter("Log files (*.log);;All files (*.*)")
+        file_dialog.setDefaultSuffix("log")
+        file_dialog.setAcceptMode(QFileDialog.AcceptSave)
+        file_dialog.selectFile(default_filename)
+        
+        if file_dialog.exec():
+            selected_file = file_dialog.selectedFiles()[0]
+            self.worker = Worker(self._writeLogToFile, selected_file)
+            self.worker.moveToThread(self._loadLogFileThread)
+            self.worker.taskCompleted.connect(self.onLogFileSaved)
+            self._loadLogFileThread.started.connect(self.worker.run)
+            self._loadLogFileThread.start()
+
+    def _writeLogToFile(self, file_path):
+        """Write the current log data to a file"""
+        try:
+            log_data = self.logviewModel._log_data
+            with open(file_path, 'w', encoding='utf-8') as file:
+                for log_entry in log_data:
+                    # Reconstruct the log line from the entry
+                    datetime_val = log_entry.get('datetime', '')
+                    timestamp_val = log_entry.get('timestamp', '')
+                    log_level_val = log_entry.get('log_level', '')
+                    process_name_val = log_entry.get('process_name', '')
+                    message_val = log_entry.get('message', '')
+                    
+                    # Format: {datetime} [{timestamp}] user.{log_level} {process_name} [] {message}
+                    log_line = f"{datetime_val} [{timestamp_val}] user.{log_level_val} {process_name_val} [] {message_val}\n"
+                    file.write(log_line)
+            return True
+        except Exception as e:
+            print(f"Error saving log file: {e}")
+            return False
+
+    @Slot(bool)
+    def onLogFileSaved(self, success):
+        self._loadLogFileThread.quit()
+        self._loadLogFileThread.wait()
+        if success:
+            self.toast.show(TOAST.INFO, "Log file saved successfully")
+        else:
+            self.toast.show(TOAST.ERROR, "Failed to save log file")
+
     def loadLogFile(self, file_path):
         print("loadLogFile: ", file_path)
         return self.logviewModel.loadLogFile(file_path, self.filterLog.colors())
@@ -1123,6 +1174,15 @@ class Controller(QObject):
         self.logviewModel.updateData([])
         self._logDict = {}
         self._nextLineNum = 0
+        try:
+            subprocess.run(
+                ["adb", "logcat", "-c"],
+                capture_output=True,
+                timeout=3,
+                creationflags=subprocess.CREATE_NO_WINDOW
+            )
+        except Exception as e:
+            print(f"adb logcat -c failed: {e}")
         self.toast.show(TOAST.INFO, "Log cleared")
     
     @Slot(dict, int)

@@ -190,8 +190,36 @@ ApplicationWindow {
             }
 
             Button {
-                id: clearLogBtn
+                id: saveLogBtn
                 anchors.left: stopStreamingBtn.right
+                width: 40
+                height: 30
+                hoverEnabled: true
+                font.family: muktaVaani.font.family
+                background: Rectangle {
+                    color: "transparent"
+                }
+                enabled: controller.logViewReady
+                padding: 0
+                icon.source: "./../assets/images/save_file.svg"
+                icon.width: 16
+                icon.height: 16
+                icon.color: ({
+                    [Styler.ThemeMode.DARK]: "#ffffff",
+                    [Styler.ThemeMode.LIGHT]: "#1F0954"
+                })[Styler.themeMode]
+                onClicked: {
+                    if (controller.logSource === "logcat") {
+                        controller.stopLogcat()
+                        controller.setLogSource("file")
+                    }
+                    controller.saveLogFile()
+                }
+            }
+
+            Button {
+                id: clearLogBtn
+                anchors.left: saveLogBtn.right
                 width: 40
                 height: 30
                 // hoverEnabled: true
