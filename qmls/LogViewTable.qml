@@ -12,6 +12,22 @@ Item {
         SearchResultsTable
     }
     property var tableType
+    property color logTextColor: ({
+        [Styler.ThemeMode.DARK]: "#ffffff",
+        [Styler.ThemeMode.LIGHT]: "#111111"
+    })[Styler.themeMode]
+    property color logRowColor: ({
+        [Styler.ThemeMode.DARK]: "#2f2f2f",
+        [Styler.ThemeMode.LIGHT]: "#ffffff"
+    })[Styler.themeMode]
+    property color logBookmarkRowColor: ({
+        [Styler.ThemeMode.DARK]: "#5a3a3a",
+        [Styler.ThemeMode.LIGHT]: "#ffe5e5"
+    })[Styler.themeMode]
+    property color logSelectionColor: ({
+        [Styler.ThemeMode.DARK]: "#5b84d6",
+        [Styler.ThemeMode.LIGHT]: "#7ea7ff"
+    })[Styler.themeMode]
     property alias filterProxyModel: filterProxyModel
     property bool showTable: true
     property bool highlight: false
@@ -227,11 +243,17 @@ Item {
         height: root.height - header.height
         width: root.width
 
-        columnSpacing: 2
-        rowSpacing: 1
+        columnSpacing: 0.5 
+        rowSpacing: 0
         boundsBehavior: Flickable.StopAtBounds
         clip: true
         focus: true
+
+        Rectangle {
+            anchors.fill: parent
+            color: root.logRowColor
+            z: -2
+        }
 
         onRowsChanged: {
             if (root.tableType === LogViewTable.TableType.ViewTable) {
@@ -271,7 +293,7 @@ Item {
         delegate: Item {
             required property bool selected
             // required property bool current
-            implicitHeight: 30
+            implicitHeight: 15
             implicitWidth: header.itemAt(column).visible ? header.itemAt(column).width : 0
             visible: implicitWidth > 0
             property bool isLastColumn: column === header.count - 1
@@ -314,41 +336,34 @@ Item {
                 anchors.fill: parent
                 horizontalAlignment: isLastColumn ? Text.AlignLeft : Text.AlignHCenter
                 verticalAlignment: Text.AlignVCenter
-                color: decoration
+                color: root.logTextColor
                 font.family: muktaVaani.font.family
                 font.pointSize: 10
                 // wrapMode: Text.WordWrap
                 // font.bold: true
                 clip: true
-                anchors.leftMargin: 5
-                anchors.rightMargin: 5
+                anchors.leftMargin: 4
+                anchors.rightMargin: 4
                 textFormat: TextEdit.RichText
                 z: 10
                 // readOnly: true
             }
 
             Rectangle {
-                border.width: 1
+                border.width: 0
                 anchors.fill: parent
                 z: -1
-                color: ({
-                    [Styler.ThemeMode.DARK]: bookmarked ? "#47fd5e5e" : "#272727",
-                    [Styler.ThemeMode.LIGHT]: bookmarked ? "#47fd5e5e" : "transparent"
-                })[Styler.themeMode]
-                border.color: ({
-                    [Styler.ThemeMode.DARK]: "#272727",
-                    [Styler.ThemeMode.LIGHT]: "#cdb2ad"
-                })[Styler.themeMode]
+                color: bookmarked ? root.logBookmarkRowColor : root.logRowColor
             }
 
             Rectangle {
                 visible: selected
                 anchors.fill: parent
-                anchors.topMargin: 3
-                anchors.bottomMargin: 3
+                anchors.topMargin: 0
+                anchors.bottomMargin: 0
                 z: 0
-                opacity: 0.9
-                color: "#323553"
+                opacity: 0.25
+                color: root.logSelectionColor
             }
 
             HighlightAnimation {
