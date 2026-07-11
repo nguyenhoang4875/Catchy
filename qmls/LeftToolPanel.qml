@@ -211,6 +211,16 @@ Item {
         }
     }
 
+    Connections {
+        target: controller
+
+        function onShowLessColumnsChanged() {
+            if (controller.showLessColumns && bar.currentIndex === 1) {
+                bar.currentIndex = 0
+            }
+        }
+    }
+
     StackLayout {
         width: parent.width
         currentIndex: bar.currentIndex

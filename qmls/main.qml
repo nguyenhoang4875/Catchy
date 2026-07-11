@@ -367,6 +367,13 @@ ApplicationWindow {
             }
         }
 
+        Shortcut {
+            sequence: "Ctrl+B"
+            onActivated: {
+                Styler.showLessColumns = !Styler.showLessColumns
+            }
+        }
+
         SplitView {
             id: verSplit
             orientation: Qt.Vertical
@@ -399,8 +406,10 @@ ApplicationWindow {
 
                     LeftToolPanel {
                         id: leftView
-                        SplitView.preferredWidth: horSplit.width * 0.15
+                        SplitView.preferredWidth: controller.showLessColumns ? 0 : horSplit.width * 0.15
+                        SplitView.minimumWidth: 0
                         SplitView.fillHeight: true
+                        visible: !controller.showLessColumns
                     }
 
                     Item {
