@@ -42,6 +42,8 @@ class Controller(QObject):
     showLogColorsChanged        = Signal()
     logSourceChanged            = Signal()
     adbDevicesAvailableChanged  = Signal()
+    scrcpyAutoShowChanged       = Signal()
+    scrcpyRunningChanged        = Signal()
     def __init__(self, parent=None):
         super().__init__(parent)
         self.create()
@@ -57,6 +59,7 @@ class Controller(QObject):
         self._pingHostThread        = QThread()
         self._logcatThread          = QThread()
         self._logcatProcess         = None
+        self._scrcpyProcess         = None
         self._showLoadingScreen     = False
         self._searchLog             = SearchLog()
         self._logViewReady          = False
@@ -90,6 +93,8 @@ class Controller(QObject):
         self._showLogColors = self._configs.getConfigs().get("showLogColors", True)
         self._logSource = self._configs.getConfigs().get("logSource", SOURCE_LOGCAT)
         self._hasAdbDevices = False
+        self._scrcpyAutoShowEnabled = self._configs.getConfigs().get("scrcpyAutoShow", False)
+        self._scrcpyRunning = False
 
         self._adbCheckTimer = QTimer(self)
         self._adbCheckTimer.setInterval(3000)
@@ -108,6 +113,7 @@ class Controller(QObject):
         print("Controller instance is being destroyed")
         self.remoteDeviceManager.streaming = False
         self._stopLogcatProcess()
+        self._stopScrcpyProcess()
         self._stop_thread(self._loadLogFileThread)
         self._stop_thread(self._streamLogFileThread)
         self._stop_thread(self._logcatThread)
@@ -223,8 +229,103 @@ class Controller(QObject):
         self._hasAdbDevices = value
         self.adbDevicesAvailableChanged.emit()
 
+    @Property(bool, notify=scrcpyAutoShowChanged)
+    def scrcpyAutoShowEnabled(self):
+        return self._scrcpyAutoShowEnabled
+
+    @scrcpyAutoShowEnabled.setter
+    def scrcpyAutoShowEnabled(self, value):
+        if self._scrcpyAutoShowEnabled == value:
+            return
+        self._scrcpyAutoShowEnabled = value
+        self._configs.saveConfig("scrcpyAutoShow", value)
+        self.scrcpyAutoShowChanged.emit()
+
+    @Property(bool, notify=scrcpyRunningChanged)
+    def scrcpyRunning(self):
+        return self._scrcpyRunning
+
+    @scrcpyRunning.setter
+    def scrcpyRunning(self, value):
+        if self._scrcpyRunning == value:
+            return
+        self._scrcpyRunning = value
+        self.scrcpyRunningChanged.emit()
+
+    def _resolveScrcpyExecutable(self):
+        candidate_paths = [
+            Path(__file__).resolve().parent.parent / "assets" / "software" / "scrcpy" / "scrcpy.exe",
+            Path(__file__).resolve().parent.parent / "assets" / "software" / "scrcpy.exe",
+            Path(__file__).resolve().parent.parent / "scrcpy" / "scrcpy.exe",
+            Path(__file__).resolve().parent.parent / "scrcpy.exe",
+            Path(ROOT_FOLDER) / "scrcpy" / "scrcpy.exe",
+            Path(ROOT_FOLDER) / "scrcpy.exe",
+        ]
+
+        for candidate in candidate_paths:
+            if candidate.exists():
+                return candidate
+
+        which_result = shutil.which("scrcpy")
+        if which_result:
+            return Path(which_result)
+
+        return None
+
+    def _stopScrcpyProcess(self):
+        if self._scrcpyProcess and self._scrcpyProcess.poll() is None:
+            self._scrcpyProcess.terminate()
+            try:
+                self._scrcpyProcess.wait(timeout=2)
+            except Exception:
+                self._scrcpyProcess.kill()
+        self._scrcpyProcess = None
+        self.scrcpyRunning = False
+
+    def _syncScrcpyState(self):
+        is_running = self._scrcpyProcess is not None and self._scrcpyProcess.poll() is None
+        self.scrcpyRunning = is_running
+
+    @Slot()
+    def openScrcpy(self):
+        self._syncScrcpyState()
+
+        if self.scrcpyRunning:
+            self._stopScrcpyProcess()
+            self.scrcpyAutoShowEnabled = False
+            self.toast.show(TOAST.INFO, "SCRCPY stopped")
+            return
+
+        self.refreshAdbDeviceAvailability()
+
+        if not self._hasAdbDevices:
+            self.toast.show(TOAST.ERROR, "No Android device found for SCRCPY")
+            return
+
+        scrcpy_path = self._resolveScrcpyExecutable()
+        if scrcpy_path is None:
+            self.toast.show(TOAST.ERROR, "scrcpy.exe not found")
+            return
+
+        self.scrcpyAutoShowEnabled = True
+
+        try:
+            self._scrcpyProcess = subprocess.Popen(
+                [str(scrcpy_path)],
+                cwd=str(scrcpy_path.parent),
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            )
+            self.scrcpyRunning = True
+        except Exception as e:
+            self.toast.show(TOAST.ERROR, f"Failed to start SCRCPY: {e}")
+            self.scrcpyRunning = False
+            return
+
+        self.toast.show(TOAST.INFO, "SCRCPY started")
+
     @Slot()
     def refreshAdbDeviceAvailability(self):
+        self._syncScrcpyState()
         was_connected = self._hasAdbDevices
 
         if not shutil.which("adb"):
@@ -244,6 +345,8 @@ class Controller(QObject):
             lines = result.stdout.splitlines()[1:]
             has_devices = any("\tdevice" in line for line in lines)
             self.hasAdbDevices = has_devices
+            if not was_connected and has_devices and self._scrcpyAutoShowEnabled:
+                self.openScrcpy()
             if was_connected and not has_devices and self._logSource == SOURCE_LOGCAT:
                 self.logSource = SOURCE_FILE
         except Exception:

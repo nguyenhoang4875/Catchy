@@ -348,6 +348,31 @@ ApplicationWindow {
                 }
             }
 
+            Button {
+                id: scrcpyBtn
+                anchors.right: showLessColumnBtn.left
+                anchors.rightMargin: 10
+                width: 40
+                height: 30
+                hoverEnabled: true
+                enabled: controller.hasAdbDevices
+                property bool isOn: controller.scrcpyRunning
+                icon.source: "./../assets/images/android_scrcpy.svg"
+
+                icon.color: !enabled ? "#8c888888" : ({
+                    [Styler.ThemeMode.DARK]: hovered ? "#FF9408" : isOn ? "#3ddbd9" : "#ffffff",
+                    [Styler.ThemeMode.LIGHT]: hovered ? "#D46A7E" : isOn ? "#D00F32" : "#1F0954"
+                })[Styler.themeMode]
+
+                background: Rectangle {
+                    color: "transparent"
+                }
+
+                onClicked: {
+                    controller.openScrcpy()
+                }
+            }
+
             Rectangle {
                 id: menuBarBg
                 anchors.fill: parent
