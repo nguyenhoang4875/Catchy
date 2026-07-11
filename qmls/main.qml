@@ -179,7 +179,7 @@ ApplicationWindow {
                 background: Rectangle {
                     color: "transparent"
                 }
-                enabled: controller.logSource === "logcat"
+                enabled: controller.hasAdbDevices && controller.logSource === "logcat"
                 padding: 0
                 icon.source: "./../assets/images/stop_stream.svg"
                 icon.color: !enabled ? "#8c888888" : "#d94c4c"

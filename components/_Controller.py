@@ -225,8 +225,12 @@ class Controller(QObject):
 
     @Slot()
     def refreshAdbDeviceAvailability(self):
+        was_connected = self._hasAdbDevices
+
         if not shutil.which("adb"):
             self.hasAdbDevices = False
+            if was_connected and self._logSource == SOURCE_LOGCAT:
+                self.logSource = SOURCE_FILE
             return
 
         try:
@@ -240,8 +244,12 @@ class Controller(QObject):
             lines = result.stdout.splitlines()[1:]
             has_devices = any("\tdevice" in line for line in lines)
             self.hasAdbDevices = has_devices
+            if was_connected and not has_devices and self._logSource == SOURCE_LOGCAT:
+                self.logSource = SOURCE_FILE
         except Exception:
             self.hasAdbDevices = False
+            if was_connected and self._logSource == SOURCE_LOGCAT:
+                self.logSource = SOURCE_FILE
 
     @Slot()
     def startLogcat(self):
