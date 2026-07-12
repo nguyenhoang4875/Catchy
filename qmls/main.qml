@@ -266,6 +266,7 @@ ApplicationWindow {
                 id: searchInput
                 width: menuBar.width / 2
                 height: 25
+                property string historyHint: ""
                 anchors.verticalCenter: menuBar.verticalCenter
                 anchors.horizontalCenter: menuBar.horizontalCenter
                 font.pixelSize: 14
@@ -279,16 +280,37 @@ ApplicationWindow {
                 enabled: controller.logViewReady
                 clip: true
 
+                Component.onCompleted: {
+                    searchInput.text = controller.getCurrentSearchQuery()
+                    searchInput.historyHint = controller.getSearchHistoryHint(searchInput.text)
+                }
+
+                onTextEdited: {
+                    searchInput.historyHint = controller.getSearchHistoryHint(searchInput.text)
+                }
+
                 Keys.onPressed: (event) => {
+                    if (event.key === Qt.Key_Tab) {
+                        if (searchInput.historyHint !== "" && searchInput.historyHint !== searchInput.text) {
+                            searchInput.text = searchInput.historyHint
+                            searchInput.cursorPosition = searchInput.text.length
+                            event.accepted = true
+                        }
+                        return
+                    }
+
                     if (event.key === Qt.Key_Return) {
                         console.log("Enter pressed: " + searchInput.text)
-                        controller.setSearchRegex("")
-                        controller.setSearchRegex(searchInput.text)
-                        if (searchInput.text !== "") {
-                            controller.setShowSearchResults(true)
-                        } else {
-                            controller.setShowSearchResults(false)
-                        }
+                        controller.executeSearch(searchInput.text)
+                        searchInput.historyHint = controller.getSearchHistoryHint(searchInput.text)
+                        event.accepted = true
+                    }
+                }
+
+                Connections {
+                    target: searchLog
+                    function onSearchHistoryChanged() {
+                        searchInput.historyHint = controller.getSearchHistoryHint(searchInput.text)
                     }
                 }
 
@@ -307,6 +329,22 @@ ApplicationWindow {
                     font.family: concertOne.font.family
                     z: 0
                     visible: searchInput.text.length === 0 && !searchInput.focus
+                }
+
+                Text {
+                    id: searchHistoryHint
+                    anchors.fill: searchInput
+                    leftPadding: searchInput.leftPadding
+                    verticalAlignment: Text.AlignVCenter
+                    text: searchInput.historyHint
+                    color: ({
+                        [Styler.ThemeMode.DARK]: "#8f8f8f",
+                        [Styler.ThemeMode.LIGHT]: "#9a96a8"
+                    })[Styler.themeMode]
+                    font.pixelSize: 14
+                    font.family: muktaVaani.font.family
+                    z: -0.5
+                    visible: searchInput.focus && searchInput.text.length > 0 && searchInput.historyHint !== "" && searchInput.historyHint !== searchInput.text
                 }
 
                 Rectangle {

@@ -96,6 +96,14 @@ class Controller(QObject):
         self._scrcpyAutoShowEnabled = self._configs.getConfigs().get("scrcpyAutoShow", False)
         self._scrcpyRunning = False
 
+        search_configs = self._configs.getConfigs().get("search", {})
+        current_query = search_configs.get("currentQuery", "")
+        previous_query = search_configs.get("previousQuery", "")
+        history = search_configs.get("history", [])
+        if not isinstance(history, list):
+            history = []
+        self._searchLog.restoreSearchState(current_query, previous_query, history)
+
         self._adbCheckTimer = QTimer(self)
         self._adbCheckTimer.setInterval(3000)
         self._adbCheckTimer.timeout.connect(self.refreshAdbDeviceAvailability)
@@ -749,17 +757,44 @@ class Controller(QObject):
         self.logviewModel.resetColorForProcessName(processName)
         pass
     # SEARCH **********************************************************
+    def _persistSearchState(self):
+        self._configs.saveConfig("search", {
+            "currentQuery": self._searchLog.searchRegex.pattern(),
+            "previousQuery": self._searchLog.previousSearchQuery,
+            "history": self._searchLog.searchHistory,
+        })
+
     @Slot(str)
     def setSearchRegex(self, pattern):
         print("setSearchRegex: ", pattern)
         self._searchLog.searchRegex = pattern
+        self._persistSearchState()
         pass
+
+    @Slot(str)
+    def executeSearch(self, pattern):
+        print("executeSearch: ", pattern)
+        self._searchLog.applySearchQuery(pattern)
+        self._searchLog.showSearchResults = bool((pattern or "").strip())
+        self._persistSearchState()
 
     @Slot(bool)
     def setShowSearchResults(self, val):
         print("setShowSearchResults: ", val)
         self._searchLog.showSearchResults = val
         pass
+
+    @Slot(result=str)
+    def getCurrentSearchQuery(self):
+        return self._searchLog.searchRegex.pattern()
+
+    @Slot(result=str)
+    def getPreviousSearchQuery(self):
+        return self._searchLog.previousSearchQuery
+
+    @Slot(str, result=str)
+    def getSearchHistoryHint(self, prefix):
+        return self._searchLog.getSearchHint(prefix)
 
     @Slot(str, result=str)
     def hightlightSearchResults(self, line):
@@ -824,6 +859,11 @@ class Controller(QObject):
                 },
                 "theme": "light",
                 "showLessColumns": False,
+                "search": {
+                    "currentQuery": "",
+                    "previousQuery": "",
+                    "history": []
+                },
                 "remote": {
                     "devices": [
                         {
