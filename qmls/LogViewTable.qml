@@ -3,6 +3,7 @@ import QtQuick.Controls 2.15
 import Qt.labs.qmlmodels 1.0
 import QtQuick.Controls.Universal 2.12
 import QtQuick.Layouts 1.13
+import QtCore 6.6
 import com.mycompany.qmlcomponents 1.0
 import Styles
 Item {
@@ -38,6 +39,7 @@ Item {
     property int lastColSelected: -1
     property int firstColSelected: logHeaderModel.count
     property var highlightLineNum: controller.highlightLineNum
+    property var selectedRows: ({})
 
     function applyColumnLayout() {
         if (controller.showLessColumns) {
@@ -284,6 +286,21 @@ Item {
         Keys.onPressed: (event) => {
             if (event.key === Qt.Key_Control) {
                 interactive = false
+            } else if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_C) {
+                // Ctrl+C: Copy selected cells
+                root.copySelectedCells()
+                event.accepted = true
+            } else if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_V) {
+                // Ctrl+V: Paste (for future implementation)
+                root.pasteSelectedCells()
+                event.accepted = true
+            } else if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_A) {
+                // Ctrl+A: Select all
+                logView.selectionModel.select(
+                    logView.selectionModel.model.index(0, 0),
+                    ItemSelectionModel.Select | ItemSelectionModel.Columns
+                )
+                event.accepted = true
             }
         }
 
@@ -291,6 +308,50 @@ Item {
             if (event.key === Qt.Key_Control) {
                 interactive = true
             }
+        }
+        
+        function copySelectedCells() {
+            var selectedIndexes = logView.selectionModel.selectedIndexes
+            if (selectedIndexes.length === 0) {
+                return
+            }
+            
+            // Build a text representation of selected cells
+            var textToCopy = ""
+            var lastRow = -1
+            
+            // Sort indices by row then column
+            var sortedIndexes = selectedIndexes.slice().sort(function(a, b) {
+                if (a.row !== b.row) return a.row - b.row
+                return a.column - b.column
+            })
+            
+            for (var i = 0; i < sortedIndexes.length; i++) {
+                var index = sortedIndexes[i]
+                
+                if (index.row !== lastRow) {
+                    if (lastRow !== -1) {
+                        textToCopy += "\n"
+                    }
+                    lastRow = index.row
+                } else {
+                    textToCopy += "\t"
+                }
+                
+                var data = filterProxyModel.data(index, Qt.DisplayRole)
+                textToCopy += data ? data.toString() : ""
+            }
+            
+            // Copy to clipboard using controller
+            if (textToCopy) {
+                controller.copyToClipboard(textToCopy)
+            }
+        }
+        
+        function pasteSelectedCells() {
+            // Placeholder for paste functionality
+            // This can be extended in the future if needed
+            console.log("Paste functionality not yet implemented")
         }
     
 
@@ -333,7 +394,32 @@ Item {
                 acceptedButtons: Qt.LeftButton | Qt.RightButton
                 onTapped: (eventPoint, button) => {
                     if (button === Qt.LeftButton) {
+                        var cellIndex = filterProxyModel.index(row, column)
+                        
+                        if (eventPoint.modifiers & Qt.ControlModifier) {
+                            // Ctrl+Click: Toggle cell selection for multi-column selection
+                            if (logView.selectionModel.isSelected(cellIndex)) {
+                                logView.selectionModel.select(cellIndex, ItemSelectionModel.Deselect)
+                            } else {
+                                logView.selectionModel.select(cellIndex, ItemSelectionModel.Select)
+                            }
+                        } else if (eventPoint.modifiers & Qt.ShiftModifier) {
+                            // Shift+Click: Select range from current to clicked cell
+                            var currentIndex = logView.selectionModel.currentIndex
+                            if (currentIndex.valid) {
+                                var range = logView.selectionModel.model.createSelection(currentIndex, cellIndex)
+                                logView.selectionModel.select(range, ItemSelectionModel.Select)
+                            } else {
+                                logView.selectionModel.setCurrentIndex(cellIndex, ItemSelectionModel.Select)
+                            }
+                        } else {
+                            // Regular click: Select cell and show details
+                            logView.selectionModel.setCurrentIndex(cellIndex, ItemSelectionModel.ClearAndSelect)
+                        }
+                        
+                        // Show log details and highlight line
                         controller.showLogDetails(lineNumber)
+                        controller.highlightLineNum = lineNumber
                     } else if (button === Qt.RightButton) {
                         let pos = mapToItem(logView, eventPoint.position.x, eventPoint.position.y)
                         optionMenu.openMenu(bookmarked, lineNumber, pos.x, pos.y)
@@ -380,7 +466,17 @@ Item {
                 anchors.topMargin: 0
                 anchors.bottomMargin: 0
                 z: 0
-                opacity: 0.25
+                opacity: 0.5
+                color: root.logSelectionColor
+            }
+
+            Rectangle {
+                visible: lineNum === root.highlightLineNum
+                anchors.fill: parent
+                anchors.topMargin: 0
+                anchors.bottomMargin: 0
+                z: 1
+                opacity: 0.4
                 color: root.logSelectionColor
             }
 
@@ -388,7 +484,7 @@ Item {
                 id: highlightAnimation
                 anchors.fill: parent
                 visible: root.tableType === LogViewTable.TableType.ViewTable
-                z: 1
+                z: 2
             }
         }
     }
