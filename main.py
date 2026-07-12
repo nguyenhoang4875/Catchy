@@ -4,6 +4,7 @@ import sys
 from pathlib import Path
 
 from PySide6.QtGui import QGuiApplication, QClipboard
+from PySide6.QtGui import QIcon
 from PySide6.QtQml import QQmlApplicationEngine, qmlRegisterType
 from PySide6.QtWidgets import QApplication
 from PySide6.QtQuickControls2 import QQuickStyle
@@ -15,7 +16,15 @@ from components._FilterLog import FilterLog
 from components._Controller import Controller
 
 if __name__ == "__main__":
+    if sys.platform.startswith("win"):
+        # Give the process a stable AppUserModelID so taskbar uses this app icon.
+        import ctypes
+
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("com.catchy.logviewer")
+
     app = QApplication(sys.argv)
+    icon_path = Path(__file__).resolve().parent / "assets" / "images" / "android_catchy_icon.svg"
+    app.setWindowIcon(QIcon(str(icon_path)))
     QQuickStyle.setStyle("Fusion")
     engine = QQmlApplicationEngine()
     engine.addImportPath(Path(__file__).parent)
