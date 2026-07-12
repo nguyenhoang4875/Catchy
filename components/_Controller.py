@@ -463,12 +463,7 @@ class Controller(QObject):
     def showLogDetails(self, line):
         print("showLogDetails: ", line)
         logline = self._logDict[line]
-        strs = []
-        keys = ["datetime", "timestamp", "log_level", "process_name", "message"]
-        for key in logline.keys():
-            if key in keys:
-                strs.append(logline[key])
-        self.detailsText = " ".join(strs)
+        self.detailsText = self.logviewModel.format_log_line(logline)
 
     def getLogViewModel(self):
         return self.logviewModel
@@ -530,15 +525,7 @@ class Controller(QObject):
             log_data = self.logviewModel._log_data
             with open(file_path, 'w', encoding='utf-8') as file:
                 for log_entry in log_data:
-                    # Reconstruct the log line from the entry
-                    datetime_val = log_entry.get('datetime', '')
-                    timestamp_val = log_entry.get('timestamp', '')
-                    log_level_val = log_entry.get('log_level', '')
-                    process_name_val = log_entry.get('process_name', '')
-                    message_val = log_entry.get('message', '')
-                    
-                    # Format: {datetime} [{timestamp}] user.{log_level} {process_name} [] {message}
-                    log_line = f"{datetime_val} [{timestamp_val}] user.{log_level_val} {process_name_val} [] {message_val}\n"
+                    log_line = self.logviewModel.format_log_line(log_entry) + "\n"
                     file.write(log_line)
             return True
         except Exception as e:

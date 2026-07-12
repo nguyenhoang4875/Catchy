@@ -564,7 +564,7 @@ ApplicationWindow {
                     showTable: searchLog.showSearchResults
                     highlight: true
                     filterProxyModel.sourceModel: logviewTable.filterProxyModel
-                    filterProxyModel.filterKeyColumn: 4
+                    filterProxyModel.filterKeyColumn: -1
                     filterProxyModel.filterRegularExpression: searchLog.searchRegex
                 }
 

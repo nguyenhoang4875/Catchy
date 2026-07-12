@@ -38,6 +38,39 @@ Item {
     property int lastColSelected: -1
     property int firstColSelected: logHeaderModel.count
     property var highlightLineNum: controller.highlightLineNum
+
+    function applyColumnLayout() {
+        if (controller.showLessColumns) {
+            // Compact mode: keep Tag visible and let Message take the rest.
+            logHeaderModel.setProperty(0, "size", 0)
+            logHeaderModel.setProperty(0, "resizeable", false)
+            logHeaderModel.setProperty(1, "size", 0)
+            logHeaderModel.setProperty(1, "resizeable", false)
+            logHeaderModel.setProperty(2, "size", 0)
+            logHeaderModel.setProperty(2, "resizeable", false)
+            logHeaderModel.setProperty(3, "size", 0)
+            logHeaderModel.setProperty(3, "resizeable", false)
+            logHeaderModel.setProperty(4, "size", 0.20)
+            logHeaderModel.setProperty(4, "resizeable", true)
+            logHeaderModel.setProperty(5, "size", 0)
+            logHeaderModel.setProperty(5, "resizeable", true)
+            return
+        }
+
+        // Full mode tab units: Date Time 2, PID 1, TID 1, Level 1, Tag 3, Message remaining.
+        logHeaderModel.setProperty(0, "size", 0.12)
+        logHeaderModel.setProperty(0, "resizeable", true)
+        logHeaderModel.setProperty(1, "size", 0.04)
+        logHeaderModel.setProperty(1, "resizeable", true)
+        logHeaderModel.setProperty(2, "size", 0.04)
+        logHeaderModel.setProperty(2, "resizeable", true)
+        logHeaderModel.setProperty(3, "size", 0.04)
+        logHeaderModel.setProperty(3, "resizeable", true)
+        logHeaderModel.setProperty(4, "size", 0.20)
+        logHeaderModel.setProperty(4, "resizeable", true)
+        logHeaderModel.setProperty(5, "size", 0)
+        logHeaderModel.setProperty(5, "resizeable", true)
+    }
     onHighlightLineNumChanged: {
         if (root.tableType === LogViewTable.TableType.ViewTable) {
             let rowIdx = filterProxyModel.rowLineNum(highlightLineNum)
@@ -151,10 +184,11 @@ Item {
 
     ListModel {
         id: logHeaderModel
-        ListElement { title: "Date Time";       size: 0.17 ;    resizeable: true }
-        ListElement { title: "Time Stamp";      size: 0.1 ;     resizeable: true }
-        ListElement { title: "Log level";       size: 0.07 ;    resizeable: true }
-        ListElement { title: "Process Name";    size: 0.1 ;     resizeable: true }
+        ListElement { title: "Date Time";       size: 0.12 ;    resizeable: true }
+        ListElement { title: "PID";             size: 0.04 ;    resizeable: true }
+        ListElement { title: "TID";             size: 0.04 ;    resizeable: true }
+        ListElement { title: "Level";       size: 0.04 ;    resizeable: true }
+        ListElement { title: "Tag";             size: 0.20 ;    resizeable: true }
         ListElement { title: "Message";         size: 0 ;       resizeable: true }
     }
 
@@ -162,27 +196,11 @@ Item {
         target: controller
 
         function onShowLessColumnsChanged() {
-            if (controller.showLessColumns) {
-                logHeaderModel.setProperty(0, "size", 0)
-                logHeaderModel.setProperty(0, "resizeable", false)
-                logHeaderModel.setProperty(1, "size", 0)
-                logHeaderModel.setProperty(1, "resizeable", false)
-                logHeaderModel.setProperty(2, "size", 0)
-                logHeaderModel.setProperty(2, "resizeable", false)
-                logHeaderModel.setProperty(3, "size", 0.1)
-                logHeaderModel.setProperty(4, "size", 0.9)
-            } else {
-                logHeaderModel.setProperty(0, "size", 0.17)
-                logHeaderModel.setProperty(0, "resizeable", true)
-                logHeaderModel.setProperty(1, "size", 0.1)
-                logHeaderModel.setProperty(1, "resizeable", true)
-                logHeaderModel.setProperty(2, "size", 0.07)
-                logHeaderModel.setProperty(2, "resizeable", true)
-                logHeaderModel.setProperty(3, "size", 0.1)
-                logHeaderModel.setProperty(4, "size", 0)
-            }
+            root.applyColumnLayout()
         }
     }
+
+    Component.onCompleted: root.applyColumnLayout()
 
     SplitView {
         id: header
@@ -375,25 +393,4 @@ Item {
         }
     }
 
-    Component.onCompleted: {
-        if (controller.showLessColumns) {
-            logHeaderModel.setProperty(0, "size", 0)
-            logHeaderModel.setProperty(0, "resizeable", false)
-            logHeaderModel.setProperty(1, "size", 0)
-            logHeaderModel.setProperty(1, "resizeable", false)
-            logHeaderModel.setProperty(2, "size", 0)
-            logHeaderModel.setProperty(2, "resizeable", false)
-            logHeaderModel.setProperty(3, "size", 0.1)
-            logHeaderModel.setProperty(4, "size", 0.9)
-        } else {
-            logHeaderModel.setProperty(0, "size", 0.17)
-            logHeaderModel.setProperty(0, "resizeable", true)
-            logHeaderModel.setProperty(1, "size", 0.1)
-            logHeaderModel.setProperty(1, "resizeable", true)
-            logHeaderModel.setProperty(2, "size", 0.07)
-            logHeaderModel.setProperty(2, "resizeable", true)
-            logHeaderModel.setProperty(3, "size", 0.1)
-            logHeaderModel.setProperty(4, "size", 0)
-        }
-    }
 }

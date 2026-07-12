@@ -3,16 +3,19 @@ import re
 import os
 LINE_NUMBER     = "line_number"
 DATE_TIME       = "datetime"
-TIME_STAMP      = "timestamp"
+PID             = "pid"
+TID             = "tid"
 LOG_LEVEL       = "log_level"
+TAG             = "tag"
 PROCESS_NAME    = "process_name"
 MESSAGE         = "message"
 COLOR           = "color"
 
 COL_DATETIME    = "Date Time"
-COL_TIMESTAMP   = "Time Stamp"
-COL_LOGLEVEL    = "Log Level"
-COL_PROCESSNAME = "Process Name"
+COL_PID         = "PID"
+COL_TID         = "TID"
+COL_LOGLEVEL    = "Level"
+COL_TAG         = "Tag"
 COL_MESSAGE     = "Message"
 
 LINE_NUMBER     = "line_number"
@@ -30,20 +33,30 @@ ROOT_FOLDER = "C:/QtLogViewer"
 
 log_pattern = re.compile(
     r'(?P<datetime>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z) '
-    r'\[(?P<timestamp>\d+\.\d+)\] '
+    r'\[(?P<pid>\d+\.\d+)\] '
     r'user\.(?P<log_level>\w+) '
-    r'(?P<process_name>.*) '
+    r'(?P<tag>.*) '
     r'\[\] '
     r'(?P<message>.*)'
+)
+
+# Bracketed compact format: [Date Time] [PID] [TID] [Level] [Tag] [Message]
+compact_pattern = re.compile(
+    r'\[(?P<datetime>[^\]]*)\]\s+'
+    r'\[(?P<pid>[^\]]*)\]\s+'
+    r'\[(?P<tid>[^\]]*)\]\s+'
+    r'\[(?P<log_level>[^\]]*)\]\s+'
+    r'\[(?P<tag>[^\]]*)\]\s+'
+    r'\[(?P<message>.*)\]\s*$'
 )
 
 # Android logcat format: MM-DD HH:MM:SS.mmm  PID  TID LEVEL TAG: message
 logcat_pattern = re.compile(
     r'(?P<datetime>\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d+)\s+'
-    r'(?P<timestamp>\d+)\s+'
-    r'\d+\s+'
+    r'(?P<pid>\d+)\s+'
+    r'(?P<tid>\d+)\s+'
     r'(?P<log_level>[VDIWEFS])\s+'
-    r'(?P<process_name>[^:]+)\s*:\s*'
+    r'(?P<tag>[^:]+)\s*:\s*'
     r'(?P<message>.*)'
 )
 
@@ -53,18 +66,19 @@ MAX_LOG_ROWS = 50_000
 
 class LogModel(QAbstractTableModel):
     ColumnDatetime      = 0
-    ColumnTimeStamp     = 1
-    ColumnLogLevel      = 2
-    ColumnProcessName   = 3
-    ColumnMessage       = 4
-    CountOfColumns      = 5
+    ColumnPid           = 1
+    ColumnTid           = 2
+    ColumnLogLevel      = 3
+    ColumnTag           = 4
+    ColumnMessage       = 5
+    CountOfColumns      = 6
 
     # Ordered list of dict keys matching column indices — avoids if-elif in data()
-    _DISPLAY_COLS = [DATE_TIME, TIME_STAMP, LOG_LEVEL, PROCESS_NAME, MESSAGE]
+    _DISPLAY_COLS = [DATE_TIME, PID, TID, LOG_LEVEL, TAG, MESSAGE]
 
     def __init__(self, logData, parent=None):
         super().__init__(parent)
-        self._column_names = [COL_DATETIME, COL_TIMESTAMP, COL_LOGLEVEL, COL_PROCESSNAME, COL_MESSAGE]
+        self._column_names = [COL_DATETIME, COL_PID, COL_TID, COL_LOGLEVEL, COL_TAG, COL_MESSAGE]
         self._controller = None
         self._log_data = list(logData) if logData is not None else []
 
@@ -72,10 +86,38 @@ class LogModel(QAbstractTableModel):
         self._controller = controller
 
     def _color_for_entry(self, log_entry, colors):
-        process_color = colors.get(log_entry[PROCESS_NAME])
+        process_color = colors.get(log_entry.get(PROCESS_NAME, ""))
         if process_color:
             return process_color
         return LOG_LEVEL_COLORS.get(log_entry.get(LOG_LEVEL, ""), "")
+
+    def _normalize_entry(self, log_entry):
+        log_entry[PID] = str(log_entry.get(PID, "")).strip()
+        log_entry[TID] = str(log_entry.get(TID, "")).strip()
+        log_entry[TAG] = str(log_entry.get(TAG, "")).strip()
+        log_entry[LOG_LEVEL] = str(log_entry.get(LOG_LEVEL, "")).strip()
+        log_entry[DATE_TIME] = str(log_entry.get(DATE_TIME, "")).strip()
+        log_entry[MESSAGE] = str(log_entry.get(MESSAGE, "")).strip()
+        # Keep legacy key for filtering and color lookups.
+        log_entry[PROCESS_NAME] = log_entry[TAG]
+        return log_entry
+
+    def _parse_line(self, line):
+        for pattern in (compact_pattern, logcat_pattern, log_pattern):
+            match = pattern.match(line)
+            if match:
+                return self._normalize_entry(match.groupdict())
+        return None
+
+    def format_log_line(self, log_entry):
+        return (
+            f"[{log_entry.get(DATE_TIME, '')}] "
+            f"[{log_entry.get(PID, '')}] "
+            f"[{log_entry.get(TID, '')}] "
+            f"[{log_entry.get(LOG_LEVEL, '')}] "
+            f"[{log_entry.get(TAG, '')}] "
+            f"[{log_entry.get(MESSAGE, '')}]"
+        )
 
     def loadLogFile(self, file_path, colors):
         print("loadLogFile: ", file_path)
@@ -86,9 +128,8 @@ class LogModel(QAbstractTableModel):
         try:
             with open(log_file_path, 'r',encoding='utf-8') as file:
                 for line in file:
-                    match = log_pattern.match(line)
-                    if match:
-                        log_entry = match.groupdict()
+                    log_entry = self._parse_line(line.strip())
+                    if log_entry:
                         log_entry[LINE_NUMBER]  = lineCount
                         log_entry[COLOR] = self._color_for_entry(log_entry, colors)
 
@@ -104,9 +145,8 @@ class LogModel(QAbstractTableModel):
         return (parsed_log, parsed_dict)
 
     def processLineData(self, lineData, colors):
-        match = log_pattern.match(lineData)
-        if match:
-            log_entry = match.groupdict()
+        log_entry = self._parse_line(lineData)
+        if log_entry:
             log_entry[COLOR] = self._color_for_entry(log_entry, colors)
             return (True, log_entry)
         else:
@@ -115,8 +155,7 @@ class LogModel(QAbstractTableModel):
     def processLineDataLogcat(self, lineData, colors):
         match = logcat_pattern.match(lineData)
         if match:
-            log_entry = match.groupdict()
-            log_entry[PROCESS_NAME] = log_entry[PROCESS_NAME].strip()
+            log_entry = self._normalize_entry(match.groupdict())
             log_entry[COLOR] = self._color_for_entry(log_entry, colors)
             return (True, log_entry)
         else:

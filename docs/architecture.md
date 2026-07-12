@@ -70,7 +70,7 @@ The `Controller` is the main facade between QML and all backend services. It:
 
 `LogModel` extends `QAbstractTableModel` and is the data source for the log table.
 
-- **Columns:** Date Time, Time Stamp, Log Level, Process Name, Message.
+- **Columns:** Date Time, Time Stamp, Level, Process Name, Message.
 - Parses log lines using a compiled regex:
   ```
   YYYY-MM-DDTHH:MM:SS.sssZ [timestamp] user.LEVEL ProcessName [] Message
