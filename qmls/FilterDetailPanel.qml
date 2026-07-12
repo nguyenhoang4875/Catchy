@@ -150,7 +150,7 @@ Popup {
 
         placeholderText: {
             if (root.type === FilterDetailPanel.Type.New) {
-                return "Enter process name"
+                return "Enter package name"
             } else {
                 return ""
             }
@@ -219,6 +219,37 @@ Popup {
         }
         onRejected: {
 
+        }
+    }
+
+    Button {
+        id: checkAndroidBtn
+        width: 130
+        height: 30
+        anchors.left: parent.left
+        anchors.leftMargin: 44
+        anchors.bottom: parent.bottom
+        anchors.bottomMargin: 5
+        font.family: muktaVaani.font.family
+        contentItem: Text {
+            text: "Check Android"
+            color: "#ECEDF5"
+            verticalAlignment: Text.AlignVCenter
+            horizontalAlignment: Text.AlignHCenter
+            font.family: muktaVaani.font.family
+            font.bold: true
+            font.pixelSize: 12
+        }
+
+        background: Rectangle {
+            color: Styler.ThemeMode.DARK === Styler.themeMode ? "#3f6254" : "#2e9c75"
+            radius: 4
+            border.width: 1
+            border.color: "#7f8180"
+        }
+
+        onClicked: {
+            controller.checkCurrentAndroidFilter(filterName.text, processNameString.text)
         }
     }
 
