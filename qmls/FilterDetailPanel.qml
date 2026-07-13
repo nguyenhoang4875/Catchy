@@ -124,7 +124,7 @@ Popup {
     }
 
     TextField {
-        id: processNameString
+        id: tagString
         width: parent.width - 10
         height: 32
         anchors.top: filterName.bottom
@@ -144,17 +144,11 @@ Popup {
             if (root.type === FilterDetailPanel.Type.New) {
                 return ""
             } else {
-                return filterProfile.processName
+                return filterProfile.tag
             }
         }
 
-        placeholderText: {
-            if (root.type === FilterDetailPanel.Type.New) {
-                return "Enter package name"
-            } else {
-                return ""
-            }
-        }
+        placeholderText: "Tag regex (e.g. tag1|tag2)"
 
         background: Rectangle {
             color: ({
@@ -165,14 +159,89 @@ Popup {
             border.width: 1
             border.color: "#7e7e7e"
         }
-            
+    }
+
+    TextField {
+        id: pidString
+        width: parent.width - 10
+        height: 32
+        anchors.top: tagString.bottom
+        anchors.topMargin: 10
+        anchors.left: parent.left
+        anchors.leftMargin: 10
+        anchors.right: parent.right
+        anchors.rightMargin: 10
+        color: ({
+            [Styler.ThemeMode.DARK]: "#ECEDF5",
+            [Styler.ThemeMode.LIGHT]: "#3F3075"
+        })[Styler.themeMode]
+        verticalAlignment: Text.AlignVCenter
+        font.family: muktaVaani.font.family
+        font.pixelSize: 13
+        text: {
+            if (root.type === FilterDetailPanel.Type.New) {
+                return ""
+            } else {
+                return filterProfile.pid
+            }
+        }
+
+        placeholderText: "PID regex (e.g. 781|795)"
+
+        background: Rectangle {
+            color: ({
+                [Styler.ThemeMode.DARK]: "#434342",
+                [Styler.ThemeMode.LIGHT]: "#e2dae1"
+            })[Styler.themeMode]
+            radius: 4
+            border.width: 1
+            border.color: "#7e7e7e"
+        }
+    }
+
+    TextField {
+        id: tidString
+        width: parent.width - 10
+        height: 32
+        anchors.top: pidString.bottom
+        anchors.topMargin: 10
+        anchors.left: parent.left
+        anchors.leftMargin: 10
+        anchors.right: parent.right
+        anchors.rightMargin: 10
+        color: ({
+            [Styler.ThemeMode.DARK]: "#ECEDF5",
+            [Styler.ThemeMode.LIGHT]: "#3F3075"
+        })[Styler.themeMode]
+        verticalAlignment: Text.AlignVCenter
+        font.family: muktaVaani.font.family
+        font.pixelSize: 13
+        text: {
+            if (root.type === FilterDetailPanel.Type.New) {
+                return ""
+            } else {
+                return filterProfile.tid
+            }
+        }
+
+        placeholderText: "TID regex (e.g. 781|795)"
+
+        background: Rectangle {
+            color: ({
+                [Styler.ThemeMode.DARK]: "#434342",
+                [Styler.ThemeMode.LIGHT]: "#e2dae1"
+            })[Styler.themeMode]
+            radius: 4
+            border.width: 1
+            border.color: "#7e7e7e"
+        }
     }
 
     RoundButton {
         id: filterColor
         width: 24
         height: 24
-        anchors.top: processNameString.bottom
+        anchors.top: tidString.bottom
         anchors.topMargin: 20
         anchors.left: parent.left
         anchors.leftMargin: 10
@@ -249,7 +318,7 @@ Popup {
         }
 
         onClicked: {
-            controller.checkCurrentAndroidFilter(filterName.text, processNameString.text)
+            controller.checkCurrentAndroidFilter(filterName.text, tagString.text)
         }
     }
 
@@ -284,9 +353,9 @@ Popup {
 
         onClicked: {
             if (root.type === FilterDetailPanel.Type.New) {
-                controller.addFilter(filterName.text, processNameString.text, filterColor.icon.color)
+                controller.addFilter(filterName.text, tagString.text, pidString.text, tidString.text, filterColor.icon.color)
             } else {
-                controller.updateFilter(root.filterProfile.id, filterName.text, processNameString.text, root.filterProfile.enabled, filterColor.icon.color)
+                controller.updateFilter(root.filterProfile.id, filterName.text, tagString.text, pidString.text, tidString.text, root.filterProfile.enabled, filterColor.icon.color)
             }
             root.close()
         }

@@ -513,8 +513,7 @@ ApplicationWindow {
                             anchors.fill: parent
                             tableType: LogViewTable.TableType.ViewTable
                             filterProxyModel.sourceModel: logModel
-                            filterProxyModel.filterKeyColumn: 3
-                            filterProxyModel.filterRegularExpression: filterLog.filteredRegex
+                            filterProxyModel.filterCriteria: filterLog.filterCriteria
                         }
 
                         SelectionRectangle {

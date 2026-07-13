@@ -2,14 +2,18 @@
     {
         "id": 0,
         "name": "HOME",
-        "processName": "com.webos.app.home",
+        "tag": "com.webos.app.home",
+        "pid": "",
+        "tid": "",
         "enabled": true,
         "color": "#d5b6b6"
     },
     {
         "id": 1,
         "name": "SDX",
-        "processName": "sdx",
+        "tag": "sdx",
+        "pid": "",
+        "tid": "",
         "enabled": true,
         "color": "#0592bd"
     }

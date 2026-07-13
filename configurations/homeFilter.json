@@ -2,7 +2,9 @@
     {
         "id": 0,
         "name": "HOME Yellow",
-        "processName": "com.webos.app.home",
+        "tag": "com.webos.app.home",
+        "pid": "",
+        "tid": "",
         "enabled": true,
         "color": "#1ac685"
     }

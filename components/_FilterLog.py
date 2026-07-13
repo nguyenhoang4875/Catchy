@@ -1,23 +1,21 @@
 # This Python file uses the following encoding: utf-8
-from PySide6.QtCore import QObject, Signal, QRegularExpression, Property, Slot
+from PySide6.QtCore import QObject, Signal, Property, Slot
 import json
 import copy
 class FilterLog(QObject):
     displayedFilterChanged  = Signal()
-    filteredRegexChanged    = Signal()
+    filterCriteriaChanged   = Signal()
     def __init__(self, parent=None):
         super().__init__(parent)
         self._filterPath                = ""
         self._loadedFilters             = {}
-        self._filteredRegex             = QRegularExpression(R"", QRegularExpression.CaseInsensitiveOption | QRegularExpression.DotMatchesEverythingOption)
         self._colors                    = {}
-        self._filteredStringList        = []
+        self._filterCriteria            = []
         self._maxID                     = 0
         pass
 
     def create(self, jsonPath):
         self.loadFilterFromJson(jsonPath)
-        self.refreshRegex()
         
     @Property(list, notify=displayedFilterChanged)
     def displayedFilters(self):
@@ -27,16 +25,14 @@ class FilterLog(QObject):
     def displayedFilters(self, val):
         self.displayedFilterChanged.emit()
 
-    @Property(QRegularExpression, notify=filteredRegexChanged)
-    def filteredRegex(self):
-        return self._filteredRegex
+    @Property(list, notify=filterCriteriaChanged)
+    def filterCriteria(self):
+        return self._filterCriteria
 
-    @filteredRegex.setter
-    def filteredRegex(self, pattern):
-        if (self._filteredRegex.pattern() == pattern):
-            return
-        self._filteredRegex.setPattern(pattern)
-        self.filteredRegexChanged.emit()
+    @filterCriteria.setter
+    def filterCriteria(self, val):
+        self._filterCriteria = val
+        self.filterCriteriaChanged.emit()
 
     @Slot(int,str)
     def updateColorFilter(self, id, color):
@@ -53,19 +49,18 @@ class FilterLog(QObject):
         self.refreshFilterProps()
 
 
-    @Slot(str, str, str)
-    def addFilter(self, name, processName, color):
+    @Slot(str, str, str, str, str)
+    def addFilter(self, name, tag, pid, tid, color):
         id = self._maxID + 1
-        filterConfig = { "id": id, "name": name, "processName": processName, "enabled": True, "color": color }
+        filterConfig = { "id": id, "name": name, "tag": tag, "pid": pid, "tid": tid, "enabled": True, "color": color }
         self._loadedFilters[id] = filterConfig
         self.saveFilterToJson()
         self.refreshFilterProps()
-        self.refreshRegex()
         self._maxID = id
 
-    @Slot(int, str, str, bool, str)
-    def updateFilter(self, id, name, processName, enabled, color):
-        filterConfig = { "id": id, "name": name, "processName": processName, "enabled": enabled, "color": color }
+    @Slot(int, str, str, str, str, bool, str)
+    def updateFilter(self, id, name, tag, pid, tid, enabled, color):
+        filterConfig = { "id": id, "name": name, "tag": tag, "pid": pid, "tid": tid, "enabled": enabled, "color": color }
         self._loadedFilters[id] = filterConfig
         self.saveFilterToJson()
         self.refreshFilterProps()
@@ -75,7 +70,6 @@ class FilterLog(QObject):
         del self._loadedFilters[id]
         self.saveFilterToJson()
         self.refreshFilterProps()
-        self.refreshRegex()
 
     def saveFilterToJson(self):
         filters = []
@@ -92,7 +86,15 @@ class FilterLog(QObject):
             with open(jsonPath, 'r', encoding='utf-8') as file:
                 datas = json.load(file)
             for data in datas:
-                    filterConfig = { "id": data["id"], "name": data["name"], "processName": data["processName"], "enabled": data["enabled"] , "color": data["color"] }
+                    filterConfig = {
+                        "id":      data["id"],
+                        "name":    data["name"],
+                        "tag":     data.get("tag", data.get("processName", "")),
+                        "pid":     data.get("pid", ""),
+                        "tid":     data.get("tid", ""),
+                        "enabled": data["enabled"],
+                        "color":   data["color"]
+                    }
                     self._loadedFilters[data["id"]] = filterConfig
                     self._maxID = max(self._maxID, data["id"])
         
@@ -103,20 +105,21 @@ class FilterLog(QObject):
 
     def refreshFilterProps(self):
         self.displayedFilterChanged.emit()
-        self._filteredStringList = []
+        self._colors = {}
+        new_criteria = []
         for filterItem in self._loadedFilters.values():
-            if (filterItem.get("enabled")):
-                processName = filterItem.get("processName")
-                color       = filterItem.get("color")
-
-                self._filteredStringList.append(processName)
-                self._colors[processName] = color
-
-    def refreshRegex(self):
-        if (len(self._filteredStringList) == 0):
-            self.filteredRegex = ""
-            return
-        self.filteredRegex = "|".join(self._filteredStringList)
+            tag   = filterItem.get("tag", "")
+            color = filterItem.get("color", "")
+            if tag:
+                self._colors[tag] = color
+            if filterItem.get("enabled"):
+                new_criteria.append({
+                    "tag":   tag,
+                    "pid":   filterItem.get("pid", ""),
+                    "tid":   filterItem.get("tid", ""),
+                    "color": color,
+                })
+        self.filterCriteria = new_criteria
 
     def loadedFilters(self):
         return self._loadedFilters

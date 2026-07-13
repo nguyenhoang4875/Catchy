@@ -763,7 +763,7 @@ class Controller(QObject):
                     self.processUpdateColorOnTable(itemId, values)
                 elif key == "enabled":
                     self.processEnableFilterOnTable(itemId)
-        self.filterLog.refreshRegex()
+        self.filterLog.refreshFilterProps()
         self._originalFilters = self.filterLog.originalFilters()
 
     @Slot(int, str)
@@ -776,13 +776,13 @@ class Controller(QObject):
     def processUpdateColorOnTable(self, id, color):
         # update color in log view
         loadedFilters = self.filterLog.loadedFilters()
-        processName = loadedFilters[id]["processName"]
-        self.logviewModel.setColorForProcessName(processName, color)
+        tag = loadedFilters[id]["tag"]
+        self.logviewModel.setColorForProcessName(tag, color)
 
     def refreshColorFilters(self):
         colors = self.filterLog.colors()
-        for processName in colors:
-            self.logviewModel.setColorForProcessName(processName, colors[processName])
+        for tag in colors:
+            self.logviewModel.setColorForProcessName(tag, colors[tag])
 
     @Slot(int,bool)
     def enableFilter(self, id, enabled):
@@ -798,33 +798,33 @@ class Controller(QObject):
         if filter is None:
             return
         
-        processName = filter["processName"]
-        color       = filter["color"]
-        self.logviewModel.setColorForProcessName(processName, color)
+        tag   = filter["tag"]
+        color = filter["color"]
+        self.logviewModel.setColorForProcessName(tag, color)
         pass
 
-    @Slot(str, str, str)
-    def addFilter(self, name, processName, color):
-        self.filterLog.addFilter(name, processName, color)
+    @Slot(str, str, str, str, str)
+    def addFilter(self, name, tag, pid, tid, color):
+        self.filterLog.addFilter(name, tag, pid, tid, color)
         self.refreshColorFilters()
         pass
 
-    @Slot(int, str, str, bool, str)
-    def updateFilter(self, id, name, processName, enabled, color):
-        self.filterLog.updateFilter(id, name, processName, enabled, color)
+    @Slot(int, str, str, str, str, bool, str)
+    def updateFilter(self, id, name, tag, pid, tid, enabled, color):
+        self.filterLog.updateFilter(id, name, tag, pid, tid, enabled, color)
         self.refreshColorFilters()
         pass
 
     @Slot(int)
     def removeFilter(self, id):
-        processName = None
+        tag = None
         for f in self.filterLog.displayedFilters:
             if f["id"] == id:
-                processName = f["processName"]
+                tag = f["tag"]
                 break
         
         self.filterLog.removeFilter(id)
-        self.logviewModel.resetColorForProcessName(processName)
+        self.logviewModel.resetColorForProcessName(tag)
         pass
     # SEARCH **********************************************************
     def _persistSearchState(self):
@@ -910,7 +910,9 @@ class Controller(QObject):
             config_data = {
                 "id": 0,
                 "name": "HOME",
-                "processName": "com.webos.app.home",
+                "tag": "com.webos.app.home",
+                "pid": "",
+                "tid": "",
                 "enabled": True,
                 "color": "#d5b6b6"
             },
