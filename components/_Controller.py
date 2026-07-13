@@ -294,54 +294,6 @@ class Controller(QObject):
         is_running = self._scrcpyProcess is not None and self._scrcpyProcess.poll() is None
         self.scrcpyRunning = is_running
 
-    def _runAdbShell(self, shell_args):
-        try:
-            result = subprocess.run(
-                ["adb", "shell", *shell_args],
-                capture_output=True,
-                text=True,
-                timeout=3,
-                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
-            )
-            if result.returncode != 0:
-                return ""
-            return (result.stdout or "").strip()
-        except Exception:
-            return ""
-
-    def _getCurrentAndroidPackage(self):
-        dumpsys_window = self._runAdbShell(["dumpsys", "window"])
-        if dumpsys_window:
-            package_match = re.search(r"mCurrentFocus.*\s([A-Za-z0-9_.$]+)/", dumpsys_window)
-            if package_match:
-                return package_match.group(1)
-
-        dumpsys_activity = self._runAdbShell(["dumpsys", "activity", "activities"])
-        if dumpsys_activity:
-            package_match = re.search(r"mResumedActivity.*\s([A-Za-z0-9_.$]+)/", dumpsys_activity)
-            if package_match:
-                return package_match.group(1)
-
-        return ""
-
-    def _getAndroidAppName(self, package_name):
-        if not package_name:
-            return ""
-        package_dump = self._runAdbShell(["dumpsys", "package", package_name])
-        if not package_dump:
-            return ""
-
-        # dumpsys may expose labels in multiple variants depending on Android version.
-        name_match = re.search(r"application-label(?:-[^:]+)?:'([^']+)'", package_dump)
-        if name_match:
-            return name_match.group(1).strip()
-
-        name_match = re.search(r'application-label(?:-[^:]+)?:"([^"]+)"', package_dump)
-        if name_match:
-            return name_match.group(1).strip()
-
-        return ""
-
     @Slot()
     def openScrcpy(self):
         self._syncScrcpyState()
@@ -378,41 +330,6 @@ class Controller(QObject):
             return
 
         self.toast.show(TOAST.INFO, "SCRCPY started")
-
-    @Slot(str, str, result=bool)
-    def checkCurrentAndroidFilter(self, filter_name, package_name):
-        self.refreshAdbDeviceAvailability()
-        if not self._hasAdbDevices:
-            self.toast.show(TOAST.ERROR, "No Android device found")
-            return False
-
-        current_package = self._getCurrentAndroidPackage()
-        if not current_package:
-            self.toast.show(TOAST.WARNING, "Cannot detect current Android app")
-            return False
-
-        current_app_name = self._getAndroidAppName(current_package)
-        normalized_filter_name = (filter_name or "").strip().lower()
-        normalized_package_name = (package_name or "").strip().lower()
-        normalized_current_name = (current_app_name or "").strip().lower()
-        normalized_current_package = current_package.strip().lower()
-
-        name_match = bool(normalized_filter_name) and normalized_filter_name == normalized_current_name
-        package_match = bool(normalized_package_name) and normalized_package_name == normalized_current_package
-        is_matched = name_match or package_match
-
-        if is_matched:
-            self.toast.show(
-                TOAST.INFO,
-                f"Filter matched: {current_app_name or current_package} ({current_package})"
-            )
-        else:
-            self.toast.show(
-                TOAST.WARNING,
-                f"Filter not matched: {current_app_name or 'Unknown'} ({current_package})"
-            )
-
-        return is_matched
 
     @Slot()
     def refreshAdbDeviceAvailability(self):
