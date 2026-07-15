@@ -13,6 +13,7 @@ Button {
     icon.width: 20
     icon.height: 20
     padding: 0
+    opacity: enabled ? 1.0 : 0.45
     background: Rectangle {
         color: "transparent"
     }

@@ -300,11 +300,15 @@ Item {
                         anchors.leftMargin: 5
                         anchors.verticalCenter: parent.verticalCenter
                         checked: modelData.enabled
+                        enabled: !controller.filteringInProgress
                         width: 20
                         height: 20
                         display: AbstractButton.IconOnly
 
                         onCheckStateChanged: {
+                            if (controller.filteringInProgress) {
+                                return
+                            }
                             controller.enableFilter(modelData.id, checked)
                         }
                     }
@@ -342,6 +346,7 @@ Item {
                         MouseArea {
                             id: colorPickerArea
                             anchors.fill: parent
+                            enabled: !controller.filteringInProgress
                             onClicked: {
                                 colorDialog.selectedFilterID = modelData.id
                                 colorDialog.open()

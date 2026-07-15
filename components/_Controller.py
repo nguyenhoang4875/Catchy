@@ -1,9 +1,10 @@
 # This Python file uses the following encoding: utf-8
-from PySide6.QtCore import QObject, Slot, QThread, Signal, Property, QModelIndex, QMimeData, QSortFilterProxyModel, QTimer
+from PySide6.QtCore import QObject, Slot, QThread, Signal, Property, QModelIndex, QMimeData, QSortFilterProxyModel, QTimer, Qt
 from PySide6.QtGui import QGuiApplication, QClipboard, QColor
 from PySide6.QtWidgets import QFileDialog
 from components._FilterLog import FilterLog
 from components._LogViewModel import LogModel
+from components._VirtualLogModel import VirtualLogModel
 from components._Worker import Worker
 from components._SearchLog import SearchLog
 from components._Configurations import Configurations
@@ -32,6 +33,7 @@ STREAM_FLAG     = "C:/QtLogViewer/stream.txt"
 
 class Controller(QObject):
     showLoadingScreenChanged    = Signal()
+    filteringInProgressChanged  = Signal()
     logViewReadyChanged         = Signal()
     loadLogFileCompleted        = Signal()
     detailsTextChanged          = Signal()
@@ -48,7 +50,6 @@ class Controller(QObject):
         super().__init__(parent)
         self.create()
         self.filterLog              = FilterLog()
-        self.logviewModel           = LogModel(logData=None)
         self.remoteDeviceManager    = RemoteDeviceManager()
         self.toast                  = Toast()
         self.helper                 = Helper()
@@ -61,11 +62,14 @@ class Controller(QObject):
         self._logcatProcess         = None
         self._scrcpyProcess         = None
         self._showLoadingScreen     = False
+        self._filteringInProgress   = False
         self._searchLog             = SearchLog()
         self._logViewReady          = False
 
         self._configs               = Configurations()
         self._configs.loadLastSavedConfig()
+        self._largeFileMode         = bool(self._configs.getConfigs().get("largeFileMode", True))
+        self.logviewModel           = VirtualLogModel() if self._largeFileMode else LogModel(logData=None)
         self.remoteDeviceManager.deviceList = self._configs.getConfigs()["remote"]["devices"]
 
         filterPath = self._configs.getConfigs()["filter"]["path"]
@@ -143,6 +147,32 @@ class Controller(QObject):
     def showLoadingScreen(self, val):
         self._showLoadingScreen = val
         self.showLoadingScreenChanged.emit()
+
+    @Property(bool, notify=filteringInProgressChanged)
+    def filteringInProgress(self):
+        return self._filteringInProgress
+
+    @filteringInProgress.setter
+    def filteringInProgress(self, val):
+        if self._filteringInProgress == val:
+            return
+        self._filteringInProgress = val
+        self.filteringInProgressChanged.emit()
+
+    def _runFilterOperation(self, operation):
+        if self.filteringInProgress:
+            return
+
+        self.filteringInProgress = True
+        self.showLoadingScreen = True
+        # Force one UI pass so the loading overlay is painted immediately.
+        QGuiApplication.processEvents()
+
+        try:
+            operation()
+        finally:
+            self.showLoadingScreen = False
+            self.filteringInProgress = False
 
     @Property(bool, notify=logViewReadyChanged)
     def logViewReady(self):
@@ -462,7 +492,12 @@ class Controller(QObject):
     @Slot(int)
     def showLogDetails(self, line):
         print("showLogDetails: ", line)
-        logline = self._logDict[line]
+        logline = self._logDict.get(line)
+        if logline is None and hasattr(self.logviewModel, "getEntryAtLine"):
+            logline = self.logviewModel.getEntryAtLine(line)
+        if not logline:
+            self.detailsText = ""
+            return
         self.detailsText = self.logviewModel.format_log_line(logline)
 
     def getLogViewModel(self):
@@ -492,11 +527,45 @@ class Controller(QObject):
         file_dialog.setNameFilter("All files (*.*);;Log files (*.log)")
         if file_dialog.exec():
             selected_file = file_dialog.selectedFiles()[0]
-            self.worker = Worker(self.loadLogFile, selected_file)
+            self.showLoadingScreen = True
+            if self._largeFileMode and isinstance(self.logviewModel, VirtualLogModel):
+                self.worker = Worker(self.loadLogFileIndexed, selected_file)
+                self.worker.taskCompleted.connect(self.onIndexedLogFileLoaded)
+            else:
+                self.worker = Worker(self.loadLogFile, selected_file)
+                self.worker.taskCompleted.connect(self.onLogFileLoaded)
             self.worker.moveToThread(self._loadLogFileThread)
-            self.worker.taskCompleted.connect(self.onLogFileLoaded)
             self._loadLogFileThread.started.connect(self.worker.run)
             self._loadLogFileThread.start()
+
+    def loadLogFileIndexed(self, file_path):
+        if not isinstance(self.logviewModel, VirtualLogModel):
+            return None
+        offsets = self.logviewModel.buildOffsets(file_path)
+        if offsets is None:
+            return None
+        return (file_path, offsets)
+
+    @Slot(object)
+    def onIndexedLogFileLoaded(self, result):
+        self._loadLogFileThread.quit()
+        self._loadLogFileThread.wait()
+        self.showLoadingScreen = False
+
+        if not result:
+            self.toast.show(TOAST.ERROR, "Failed to index log file")
+            return
+
+        file_path, offsets = result
+        success = self.logviewModel.activateIndexedSource(file_path, offsets, self.filterLog.colors())
+        if not success:
+            self.toast.show(TOAST.ERROR, "Failed to open indexed log file")
+            return
+
+        self._logDict = {}
+        self._nextLineNum = self.logviewModel.rowCount()
+        self.logViewReady = True
+        self.loadLogFileCompleted.emit()
 
     @Slot()
     def saveLogFile(self):
@@ -522,9 +591,13 @@ class Controller(QObject):
     def _writeLogToFile(self, file_path):
         """Write the current log data to a file"""
         try:
-            log_data = self.logviewModel._log_data
             with open(file_path, 'w', encoding='utf-8') as file:
-                for log_entry in log_data:
+                if hasattr(self.logviewModel, "iterEntries"):
+                    entries = self.logviewModel.iterEntries()
+                else:
+                    entries = self.logviewModel._log_data
+
+                for log_entry in entries:
                     log_line = self.logviewModel.format_log_line(log_entry) + "\n"
                     file.write(log_line)
             return True
@@ -549,6 +622,7 @@ class Controller(QObject):
     def onLogFileLoaded(self, result):
         self._loadLogFileThread.quit()
         self._loadLogFileThread.wait()
+        self.showLoadingScreen = False
         (parsed_log, parsed_dict) = result
         self._logDict = parsed_dict
         self._nextLineNum = len(parsed_dict)
@@ -569,6 +643,7 @@ class Controller(QObject):
     def onStreamingLogFileLoaded(self, result):
         self._loadLogFileThread.quit()
         self._loadLogFileThread.wait()
+        self.showLoadingScreen = False
         (parsed_log, parsed_dict) = result
         self._logDict = parsed_dict
         self._nextLineNum = len(parsed_dict)
@@ -651,45 +726,53 @@ class Controller(QObject):
             self.filterLog.loadFilterFromJson(selected_file)
             self._originalFilters = self.filterLog.originalFilters()
             self._configs.saveConfig("filter", {"path": selected_file})
-            self.refreshColorFilters()
+            self._runFilterOperation(self.refreshColorFilters)
             pass
 
     @Slot()
     def applyFilterChanges(self):
-        print("applyFilterChanges")
-        differences = []
-        changedFilters = self.filterLog.displayedFilters
+        if self.filteringInProgress:
+            return
 
-        print("Original Filters: ", self._originalFilters)
-        print("Changed Filters: ", changedFilters)
+        def _apply():
+            print("applyFilterChanges")
+            differences = []
+            changedFilters = self.filterLog.displayedFilters
 
-        for i, (item1, item2) in enumerate(zip(self._originalFilters, changedFilters)):
-            diff = {"id": item1["id"], "differences": {}}
-            for key in item1.keys():
-                if item1[key] != item2[key]:
-                    diff["differences"][key] = item2[key]
-            if diff["differences"]:
-                differences.append(diff)
+            print("Original Filters: ", self._originalFilters)
+            print("Changed Filters: ", changedFilters)
 
-        for diff in differences:
-            print(f"Index {diff['id']} has differences:")
-            itemId = diff['id']
-            for key, values in diff['differences'].items():
-                print(f"  - {key}: changed to {values}")
-                if key == "color":
-                    self.processUpdateColorOnTable(itemId, values)
-                elif key == "enabled":
-                    self.processEnableFilterOnTable(itemId)
-        self.filterLog.refreshFilterProps()
-        self._originalFilters = self.filterLog.originalFilters()
+            for i, (item1, item2) in enumerate(zip(self._originalFilters, changedFilters)):
+                diff = {"id": item1["id"], "differences": {}}
+                for key in item1.keys():
+                    if item1[key] != item2[key]:
+                        diff["differences"][key] = item2[key]
+                if diff["differences"]:
+                    differences.append(diff)
+
+            for diff in differences:
+                print(f"Index {diff['id']} has differences:")
+                itemId = diff['id']
+                for key, values in diff['differences'].items():
+                    print(f"  - {key}: changed to {values}")
+                    if key == "color":
+                        self.processUpdateColorOnTable(itemId, values)
+                    elif key == "enabled":
+                        self.processEnableFilterOnTable(itemId)
+            self.filterLog.refreshFilterProps()
+            self._originalFilters = self.filterLog.originalFilters()
+
+        self._runFilterOperation(_apply)
 
     @Slot(int, str)
     @Slot(int, QColor)
     def updateColorFilter(self, id, color):
+        if self.filteringInProgress:
+            return
         print("updateColorFilter id {} color {}".format(id, color))
         # update color in filter log
         self.filterLog.updateColorFilter(id, color)
-        self.refreshColorFilters()
+        self._runFilterOperation(self.refreshColorFilters)
         pass
 
     def processUpdateColorOnTable(self, id, color):
@@ -702,8 +785,14 @@ class Controller(QObject):
 
     @Slot(int,bool)
     def enableFilter(self, id, enabled):
-        self.filterLog.enableFilter(id, enabled)
-        self.refreshColorFilters()
+        if self.filteringInProgress:
+            return
+
+        def _apply_enable_filter():
+            self.filterLog.enableFilter(id, enabled)
+            self.refreshColorFilters()
+
+        self._runFilterOperation(_apply_enable_filter)
 
     def processEnableFilterOnTable(self, id):
         filter = None
@@ -723,19 +812,25 @@ class Controller(QObject):
     @Slot(str, str, str)
     @Slot(str, str, QColor)
     def addFilter(self, tag, tid, color):
+        if self.filteringInProgress:
+            return
         self.filterLog.addFilter(tag, tid, color)
-        self.refreshColorFilters()
+        self._runFilterOperation(self.refreshColorFilters)
         pass
 
     @Slot(int, str, str, bool, str)
     @Slot(int, str, str, bool, QColor)
     def updateFilter(self, id, tag, tid, enabled, color):
+        if self.filteringInProgress:
+            return
         self.filterLog.updateFilter(id, tag, tid, enabled, color)
-        self.refreshColorFilters()
+        self._runFilterOperation(self.refreshColorFilters)
         pass
 
     @Slot(int)
     def removeFilter(self, id):
+        if self.filteringInProgress:
+            return
         tag = None
         for f in self.filterLog.displayedFilters:
             if f["id"] == id:
@@ -743,7 +838,7 @@ class Controller(QObject):
                 break
         
         self.filterLog.removeFilter(id)
-        self.logviewModel.resetColorForProcessName(tag)
+        self._runFilterOperation(lambda: self.logviewModel.resetColorForProcessName(tag))
         pass
     # SEARCH **********************************************************
     def _persistSearchState(self):
@@ -850,6 +945,7 @@ class Controller(QObject):
                 },
                 "theme": "light",
                 "showLessColumns": False,
+                "largeFileMode": True,
                 "search": {
                     "currentQuery": "",
                     "previousQuery": "",
@@ -1152,7 +1248,7 @@ class Controller(QObject):
         try:
             bash_path = Path(__file__).resolve().parent.parent / 'scripts/stop_stream.sh'
             subprocess.run([
-                    'C:\Program Files\Git\\bin\\bash.exe', bash_path
+                    r'C:\Program Files\Git\bin\bash.exe', bash_path
             ],
             creationflags=subprocess.CREATE_NO_WINDOW)
             self.remoteDeviceManager.connectedDevice        = None
@@ -1170,7 +1266,7 @@ class Controller(QObject):
         try:
             bash_path = os.path.join(os.path.dirname(__file__), '../scripts/stop_stream.sh')
             subprocess.run([
-                    'C:\Program Files\Git\\bin\\bash.exe', bash_path
+                    r'C:\Program Files\Git\bin\bash.exe', bash_path
             ],
             creationflags=subprocess.CREATE_NO_WINDOW)
             self.remoteDeviceManager.connectedDevice        = None
@@ -1253,7 +1349,15 @@ class Controller(QObject):
     
     @Slot(int, result=str)
     def getLogMessage(self, lineNum):
-        return self._logDict[lineNum]["message"]
+        logline = self._logDict.get(lineNum)
+        if logline:
+            return logline["message"]
+
+        if hasattr(self.logviewModel, "getMessageAtLine"):
+            return self.logviewModel.getMessageAtLine(lineNum)
+
+        model_index = self.logviewModel.index(lineNum, 5)
+        return str(self.logviewModel.data(model_index, Qt.DisplayRole) or "")
     
     
     def remove_line_with_ip(self, ip_address):
