@@ -561,6 +561,7 @@ ApplicationWindow {
                     anchors.fill: parent
                     tableType: LogViewTable.TableType.SearchResultsTable
                     showTable: searchLog.showSearchResults
+                    applyFilterColors: false
                     highlight: true
                     filterProxyModel.sourceModel: logviewTable.filterProxyModel
                     filterProxyModel.filterKeyColumn: -1

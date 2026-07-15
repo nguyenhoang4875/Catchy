@@ -1,6 +1,6 @@
 # This Python file uses the following encoding: utf-8
 from PySide6.QtCore import QObject, Slot, QThread, Signal, Property, QModelIndex, QMimeData, QSortFilterProxyModel, QTimer
-from PySide6.QtGui import QGuiApplication, QClipboard
+from PySide6.QtGui import QGuiApplication, QClipboard, QColor
 from PySide6.QtWidgets import QFileDialog
 from components._FilterLog import FilterLog
 from components._LogViewModel import LogModel
@@ -684,26 +684,26 @@ class Controller(QObject):
         self._originalFilters = self.filterLog.originalFilters()
 
     @Slot(int, str)
+    @Slot(int, QColor)
     def updateColorFilter(self, id, color):
         print("updateColorFilter id {} color {}".format(id, color))
         # update color in filter log
         self.filterLog.updateColorFilter(id, color)
+        self.refreshColorFilters()
         pass
 
     def processUpdateColorOnTable(self, id, color):
-        # update color in log view
-        loadedFilters = self.filterLog.loadedFilters()
-        tag = loadedFilters[id]["tag"]
-        self.logviewModel.setColorForProcessName(tag, color)
+        # Recompute row colors from all active filters to keep regex behavior consistent.
+        self.refreshColorFilters()
 
     def refreshColorFilters(self):
         colors = self.filterLog.colors()
-        for tag in colors:
-            self.logviewModel.setColorForProcessName(tag, colors[tag])
+        self.logviewModel.reapplyProcessColors(colors)
 
     @Slot(int,bool)
     def enableFilter(self, id, enabled):
         self.filterLog.enableFilter(id, enabled)
+        self.refreshColorFilters()
 
     def processEnableFilterOnTable(self, id):
         filter = None
@@ -720,15 +720,17 @@ class Controller(QObject):
         self.logviewModel.setColorForProcessName(tag, color)
         pass
 
-    @Slot(str, str, str, str, str)
-    def addFilter(self, name, tag, pid, tid, color):
-        self.filterLog.addFilter(name, tag, pid, tid, color)
+    @Slot(str, str, str)
+    @Slot(str, str, QColor)
+    def addFilter(self, tag, tid, color):
+        self.filterLog.addFilter(tag, tid, color)
         self.refreshColorFilters()
         pass
 
-    @Slot(int, str, str, str, str, bool, str)
-    def updateFilter(self, id, name, tag, pid, tid, enabled, color):
-        self.filterLog.updateFilter(id, name, tag, pid, tid, enabled, color)
+    @Slot(int, str, str, bool, str)
+    @Slot(int, str, str, bool, QColor)
+    def updateFilter(self, id, tag, tid, enabled, color):
+        self.filterLog.updateFilter(id, tag, tid, enabled, color)
         self.refreshColorFilters()
         pass
 

@@ -10,6 +10,8 @@ TAG             = "tag"
 PROCESS_NAME    = "process_name"
 MESSAGE         = "message"
 COLOR           = "color"
+FILTER_COLOR    = "filter_color"
+LEVEL_COLOR     = "level_color"
 
 COL_DATETIME    = "Date Time"
 COL_PID         = "PID"
@@ -63,6 +65,8 @@ logcat_pattern = re.compile(
 
 
 MAX_LOG_ROWS = 50_000
+ROLE_FILTER_COLOR = Qt.UserRole + 1
+ROLE_LEVEL_COLOR = Qt.UserRole + 2
 
 class LogModel(QAbstractTableModel):
     ColumnDatetime      = 0
@@ -85,10 +89,31 @@ class LogModel(QAbstractTableModel):
     def setController(self, controller):
         self._controller = controller
 
+    @staticmethod
+    def _tag_matches(pattern, value):
+        if not pattern:
+            return False
+
+        try:
+            return bool(re.search(pattern, value, re.IGNORECASE))
+        except re.error:
+            # Fall back to case-insensitive exact text matching for invalid regex patterns.
+            return pattern.lower() == value.lower()
+
     def _color_for_entry(self, log_entry, colors):
-        process_color = colors.get(log_entry.get(PROCESS_NAME, ""))
-        if process_color:
-            return process_color
+        filter_color = self._filter_color_for_entry(log_entry, colors)
+        if filter_color:
+            return filter_color
+        return self._level_color_for_entry(log_entry)
+
+    def _filter_color_for_entry(self, log_entry, colors):
+        process_name = str(log_entry.get(PROCESS_NAME, ""))
+        for tag_pattern, color in colors.items():
+            if self._tag_matches(str(tag_pattern), process_name):
+                return color
+        return ""
+
+    def _level_color_for_entry(self, log_entry):
         return LOG_LEVEL_COLORS.get(log_entry.get(LOG_LEVEL, ""), "")
 
     def _normalize_entry(self, log_entry):
@@ -131,6 +156,8 @@ class LogModel(QAbstractTableModel):
                     log_entry = self._parse_line(line.strip())
                     if log_entry:
                         log_entry[LINE_NUMBER]  = lineCount
+                        log_entry[FILTER_COLOR] = self._filter_color_for_entry(log_entry, colors)
+                        log_entry[LEVEL_COLOR] = self._level_color_for_entry(log_entry)
                         log_entry[COLOR] = self._color_for_entry(log_entry, colors)
 
                         parsed_dict[lineCount] = log_entry
@@ -147,6 +174,8 @@ class LogModel(QAbstractTableModel):
     def processLineData(self, lineData, colors):
         log_entry = self._parse_line(lineData)
         if log_entry:
+            log_entry[FILTER_COLOR] = self._filter_color_for_entry(log_entry, colors)
+            log_entry[LEVEL_COLOR] = self._level_color_for_entry(log_entry)
             log_entry[COLOR] = self._color_for_entry(log_entry, colors)
             return (True, log_entry)
         else:
@@ -156,6 +185,8 @@ class LogModel(QAbstractTableModel):
         match = logcat_pattern.match(lineData)
         if match:
             log_entry = self._normalize_entry(match.groupdict())
+            log_entry[FILTER_COLOR] = self._filter_color_for_entry(log_entry, colors)
+            log_entry[LEVEL_COLOR] = self._level_color_for_entry(log_entry)
             log_entry[COLOR] = self._color_for_entry(log_entry, colors)
             return (True, log_entry)
         else:
@@ -177,6 +208,10 @@ class LogModel(QAbstractTableModel):
         entry = self._log_data[row]
         if role == Qt.UserRole:
             return entry[LINE_NUMBER]
+        if role == ROLE_FILTER_COLOR:
+            return entry.get(FILTER_COLOR, "")
+        if role == ROLE_LEVEL_COLOR:
+            return entry.get(LEVEL_COLOR, "")
         if role == Qt.DecorationRole:
             return entry[COLOR]
         if role == Qt.DisplayRole:
@@ -194,7 +229,13 @@ class LogModel(QAbstractTableModel):
         return None
 
     def roleNames(self):
-        return {Qt.DisplayRole: b"display", Qt.DecorationRole: b"decoration", Qt.UserRole: b"lineNumber"}
+        return {
+            Qt.DisplayRole: b"display",
+            Qt.DecorationRole: b"decoration",
+            Qt.UserRole: b"lineNumber",
+            ROLE_FILTER_COLOR: b"filterColor",
+            ROLE_LEVEL_COLOR: b"levelColor",
+        }
     
     def addRows(self, entries):
         """Batch-insert multiple rows at the end. One beginInsertRows/endInsertRows call."""
@@ -243,3 +284,16 @@ class LogModel(QAbstractTableModel):
         for row in range(self.rowCount()):
             if processName == self._log_data[row][PROCESS_NAME]:
                 self.setRowColor(row, self._color_for_entry(self._log_data[row], {}))
+
+    def reapplyProcessColors(self, colors):
+        if not self._log_data:
+            return
+
+        for row in range(self.rowCount()):
+            self._log_data[row][FILTER_COLOR] = self._filter_color_for_entry(self._log_data[row], colors)
+            self._log_data[row][LEVEL_COLOR] = self._level_color_for_entry(self._log_data[row])
+            self._log_data[row][COLOR] = self._color_for_entry(self._log_data[row], colors)
+
+        top_left = self.index(0, 0)
+        bottom_right = self.index(self.rowCount() - 1, self.columnCount() - 1)
+        self.dataChanged.emit(top_left, bottom_right, [Qt.DecorationRole])

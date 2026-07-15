@@ -80,54 +80,10 @@ Popup {
     }
 
     TextField {
-        id: filterName
-        width: parent.width - 10
-        height: 32
-        anchors.top: dialogTitle.bottom
-        anchors.topMargin: 10
-        anchors.left: parent.left
-        anchors.leftMargin: 10
-        anchors.right: parent.right
-        anchors.rightMargin: 10
-        color: ({
-            [Styler.ThemeMode.DARK]: "#ECEDF5",
-            [Styler.ThemeMode.LIGHT]: "#3F3075"
-        })[Styler.themeMode]
-        verticalAlignment: Text.AlignVCenter
-        font.family: muktaVaani.font.family
-        font.pixelSize: 13
-        text: {
-            if (root.type === FilterDetailPanel.Type.New) {
-                return ""
-            } else {
-                return filterProfile.name
-            }
-        }
-
-        placeholderText: {
-            if (root.type === FilterDetailPanel.Type.New) {
-                return "Enter filter name"
-            } else {
-                return ""
-            }
-        }
-
-        background: Rectangle {
-            color: ({
-                [Styler.ThemeMode.DARK]: "#434342",
-                [Styler.ThemeMode.LIGHT]: "#e2dae1"
-            })[Styler.themeMode]
-            radius: 4
-            border.width: 1
-            border.color: "#7e7e7e"
-        }
-    }
-
-    TextField {
         id: tagString
         width: parent.width - 10
         height: 32
-        anchors.top: filterName.bottom
+        anchors.top: dialogTitle.bottom
         anchors.topMargin: 20
         anchors.left: parent.left
         anchors.leftMargin: 10
@@ -162,48 +118,10 @@ Popup {
     }
 
     TextField {
-        id: pidString
-        width: parent.width - 10
-        height: 32
-        anchors.top: tagString.bottom
-        anchors.topMargin: 10
-        anchors.left: parent.left
-        anchors.leftMargin: 10
-        anchors.right: parent.right
-        anchors.rightMargin: 10
-        color: ({
-            [Styler.ThemeMode.DARK]: "#ECEDF5",
-            [Styler.ThemeMode.LIGHT]: "#3F3075"
-        })[Styler.themeMode]
-        verticalAlignment: Text.AlignVCenter
-        font.family: muktaVaani.font.family
-        font.pixelSize: 13
-        text: {
-            if (root.type === FilterDetailPanel.Type.New) {
-                return ""
-            } else {
-                return filterProfile.pid
-            }
-        }
-
-        placeholderText: "PID regex (e.g. 781|795)"
-
-        background: Rectangle {
-            color: ({
-                [Styler.ThemeMode.DARK]: "#434342",
-                [Styler.ThemeMode.LIGHT]: "#e2dae1"
-            })[Styler.themeMode]
-            radius: 4
-            border.width: 1
-            border.color: "#7e7e7e"
-        }
-    }
-
-    TextField {
         id: tidString
         width: parent.width - 10
         height: 32
-        anchors.top: pidString.bottom
+        anchors.top: tagString.bottom
         anchors.topMargin: 10
         anchors.left: parent.left
         anchors.leftMargin: 10
@@ -241,8 +159,8 @@ Popup {
         id: filterColor
         width: 24
         height: 24
-        anchors.top: tidString.bottom
-        anchors.topMargin: 20
+        anchors.bottom: parent.bottom
+        anchors.bottomMargin: 5
         anchors.left: parent.left
         anchors.leftMargin: 10
         icon.source: "./../assets/images/palette.svg"
@@ -298,7 +216,7 @@ Popup {
         anchors.right: parent.right
         anchors.rightMargin: 10
         anchors.bottom: parent.bottom
-        anchors.bottomMargin: 5
+        anchors.bottomMargin: 8
         font.family: muktaVaani.font.family
         contentItem: Text {
             text: "OK"
@@ -322,9 +240,9 @@ Popup {
 
         onClicked: {
             if (root.type === FilterDetailPanel.Type.New) {
-                controller.addFilter(filterName.text, tagString.text, pidString.text, tidString.text, filterColor.icon.color)
+                controller.addFilter(tagString.text, tidString.text, filterColor.icon.color)
             } else {
-                controller.updateFilter(root.filterProfile.id, filterName.text, tagString.text, pidString.text, tidString.text, root.filterProfile.enabled, filterColor.icon.color)
+                controller.updateFilter(root.filterProfile.id, tagString.text, tidString.text, root.filterProfile.enabled, filterColor.icon.color)
             }
             root.close()
         }

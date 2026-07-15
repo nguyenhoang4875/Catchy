@@ -226,7 +226,7 @@ Item {
         currentIndex: bar.currentIndex
         anchors.top: bar.bottom
         anchors.bottom: root.bottom
-// FILTER TAB ********************************************
+        // FILTER TAB ********************************************
         Item {
             id: filterTab
             property bool hasChanges: false
@@ -305,7 +305,6 @@ Item {
                         display: AbstractButton.IconOnly
 
                         onCheckStateChanged: {
-                            filterTab.hasChanges = true
                             controller.enableFilter(modelData.id, checked)
                         }
                     }
@@ -348,54 +347,6 @@ Item {
                                 colorDialog.open()
                             }
                         }
-                    }
-                }
-            }
-
-            Item {
-                id: applyChangesBtn
-                width: parent.width
-                height: 30
-                anchors.bottom: parent.bottom
-                anchors.left: parent.left
-                anchors.right: parent.right
-                anchors.rightMargin: 10
-                anchors.leftMargin: 10
-                anchors.bottomMargin: 10
-                enabled: filterTab.hasChanges
-
-                Rectangle {
-                    id: applyChangesBg
-                    anchors.fill: parent
-                    color: ({
-                        [Styler.ThemeMode.LIGHT]:   parent.enabled ? (applyChangesArea.containsMouse ? "#5D62EE" : "#85A3B2") : "#aeb2b0",
-                        [Styler.ThemeMode.DARK]:    parent.enabled ? (applyChangesArea.containsMouse ? "#5D62EE" : "#444444") : Qt.rgba(207, 202, 202, 0.18)
-                    })[Styler.themeMode]
-                    radius: 2
-                    border.width: 1
-                    border.color: "#aeb2b0"
-                }
-
-                Text {
-                    id: applyChangesText
-                    anchors.centerIn: parent
-                    text: "Apply"
-                    color: ({
-                        [Styler.ThemeMode.LIGHT]:   parent.enabled ? "#ECEDF5" : Qt.rgba(185, 208, 230, 0.78),
-                        [Styler.ThemeMode.DARK]:    parent.enabled ? "#ECEDF5" : Qt.rgba(202, 200, 200, 0.15)
-                    })[Styler.themeMode]
-                    font.family: muktaVaani.font.family
-                    font.pixelSize: 14
-                }
-                
-                MouseArea {
-                    id: applyChangesArea
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    enabled: filterTab.hasChanges
-                    onClicked: {
-                        controller.applyFilterChanges()
-                        filterTab.hasChanges = false
                     }
                 }
             }

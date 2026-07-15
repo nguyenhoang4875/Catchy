@@ -31,6 +31,7 @@ Item {
     })[Styler.themeMode]
     property alias filterProxyModel: filterProxyModel
     property bool showTable: true
+    property bool applyFilterColors: true
     property bool highlight: false
     property var highlightProvider: function(text) {
         return controller.hightlightSearchResults(text)
@@ -440,7 +441,7 @@ Item {
                 anchors.fill: parent
                 horizontalAlignment: isLastColumn ? Text.AlignLeft : Text.AlignHCenter
                 verticalAlignment: Text.AlignVCenter
-                color: controller.showLogColors && decoration ? decoration : root.logTextColor
+                color: (root.applyFilterColors && filterColor) ? filterColor : (controller.showLogColors && levelColor ? levelColor : root.logTextColor)
                 font.family: muktaVaani.font.family
                 font.pointSize: 10
                 // wrapMode: Text.WordWrap
