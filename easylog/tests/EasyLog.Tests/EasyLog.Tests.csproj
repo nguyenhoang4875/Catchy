@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\EasyLog.Contracts\EasyLog.Contracts.csproj" />
+    <ProjectReference Include="..\..\src\EasyLog.Engine\EasyLog.Engine.csproj" />
+    <ProjectReference Include="..\..\src\EasyLog.Engine.Collectors.Adb\EasyLog.Engine.Collectors.Adb.csproj" />
+    <ProjectReference Include="..\..\src\EasyLog.Engine.Collectors.File\EasyLog.Engine.Collectors.File.csproj" />
+    <ProjectReference Include="..\..\src\EasyLog.Engine.Parsers\EasyLog.Engine.Parsers.csproj" />
+    <ProjectReference Include="..\..\src\EasyLog.Engine.Storage\EasyLog.Engine.Storage.csproj" />
+    <ProjectReference Include="..\..\src\EasyLog.Engine.Indexes\EasyLog.Engine.Indexes.csproj" />
+    <ProjectReference Include="..\..\src\EasyLog.Engine.Query\EasyLog.Engine.Query.csproj" />
+    <ProjectReference Include="..\..\src\EasyLog.Engine.Diagnostics\EasyLog.Engine.Diagnostics.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="System.Text.Encoding.CodePages" Version="10.0.5" />
+  </ItemGroup>
+</Project>
+
+

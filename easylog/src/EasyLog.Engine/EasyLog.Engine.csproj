@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\EasyLog.Contracts\EasyLog.Contracts.csproj" />
+    <ProjectReference Include="..\EasyLog.Engine.Collectors.Adb\EasyLog.Engine.Collectors.Adb.csproj" />
+    <ProjectReference Include="..\EasyLog.Engine.Collectors.File\EasyLog.Engine.Collectors.File.csproj" />
+    <ProjectReference Include="..\EasyLog.Engine.Parsers\EasyLog.Engine.Parsers.csproj" />
+    <ProjectReference Include="..\EasyLog.Engine.Storage\EasyLog.Engine.Storage.csproj" />
+    <ProjectReference Include="..\EasyLog.Engine.Indexes\EasyLog.Engine.Indexes.csproj" />
+    <ProjectReference Include="..\EasyLog.Engine.Query\EasyLog.Engine.Query.csproj" />
+    <ProjectReference Include="..\EasyLog.Engine.Diagnostics\EasyLog.Engine.Diagnostics.csproj" />
+  </ItemGroup>
+</Project>
+

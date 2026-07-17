@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>LogPilot</AssemblyName>
+    <Product>LogPilot - AAOS Log Viewer</Product>
+    <Title>LogPilot - AAOS Log Viewer</Title>
+    <Description>AAOS live and file log viewer for Windows.</Description>
+    <Version>1.0.3</Version>
+    <AssemblyVersion>1.0.3.0</AssemblyVersion>
+    <FileVersion>1.0.3.0</FileVersion>
+    <InformationalVersion>v1.0.3</InformationalVersion>
+    <Copyright>© 2025-2026 LG Electronics Inc. All rights reserved.</Copyright>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+    <ApplicationIcon>Assets\easylog.ico</ApplicationIcon>
+  </PropertyGroup>
+  <ItemGroup>
+    <Resource Include="Assets\easylog.ico" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="prompts\**\*.md" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\EasyLog.Contracts\EasyLog.Contracts.csproj" />
+    <ProjectReference Include="..\EasyLog.Engine\EasyLog.Engine.csproj" />
+  </ItemGroup>
+</Project>
+

@@ -1,0 +1,17 @@
+bin/
+obj/
+.vs/
+.idea/
+*.user
+*.suo
+*.cache
+*.log
+!sample-logs/*.log
+*.tmp
+EasyLog.sln.DotSettings.user
+
+# Build artifacts / packages
+artifacts/package/
+artifacts/temp/
+artifacts/*.7z
+
