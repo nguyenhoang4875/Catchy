@@ -696,7 +696,7 @@ ApplicationWindow {
 
         LoadingScreen {
             id: loadingScreen
-            visible: controller.showLoadingScreen
+            visible: controller.showLoadingScreen || controller.isSaving
             anchors.fill: parent
         }
 

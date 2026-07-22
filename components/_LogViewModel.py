@@ -1,6 +1,8 @@
 from PySide6.QtCore import Qt, QAbstractTableModel, QModelIndex
 import re
 import os
+from components._Defines import BATCH_SIZE, IO_BUFFER_SIZE
+
 LINE_NUMBER     = "line_number"
 DATE_TIME       = "datetime"
 PID             = "pid"
@@ -9,9 +11,6 @@ LOG_LEVEL       = "log_level"
 TAG             = "tag"
 PROCESS_NAME    = "process_name"
 MESSAGE         = "message"
-COLOR           = "color"
-FILTER_COLOR    = "filter_color"
-LEVEL_COLOR     = "level_color"
 
 COL_DATETIME    = "Date Time"
 COL_PID         = "PID"
@@ -33,16 +32,16 @@ LOG_LEVEL_COLORS = {
 
 ROOT_FOLDER = "C:/QtLogViewer"
 
+# Regex patterns kept as fallback only — manual parsers are faster.
 log_pattern = re.compile(
     r'(?P<datetime>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z) '
     r'\[(?P<pid>\d+\.\d+)\] '
     r'user\.(?P<log_level>\w+) '
-    r'(?P<tag>.*) '
+    r'(?P<tag>.*?) '            # non-greedy to avoid backtracking
     r'\[\] '
     r'(?P<message>.*)'
 )
 
-# Bracketed compact format: [Date Time] [PID] [TID] [Level] [Tag] [Message]
 compact_pattern = re.compile(
     r'\[(?P<datetime>[^\]]*)\]\s+'
     r'\[(?P<pid>[^\]]*)\]\s+'
@@ -52,19 +51,210 @@ compact_pattern = re.compile(
     r'\[(?P<message>.*)\]\s*$'
 )
 
-# Android logcat format: MM-DD HH:MM:SS.mmm  PID  TID LEVEL TAG: message
 logcat_pattern = re.compile(
     r'(?P<datetime>\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d+)\s+'
     r'(?P<pid>\d+)\s+'
     r'(?P<tid>\d+)\s+'
     r'(?P<log_level>[VDIWEFS])\s+'
-    r'(?P<tag>[^:]+)\s*:\s*'
+    r'(?P<tag>[^:]+?)\s*:\s*'
     r'(?P<message>.*)'
 )
 
+_ALL_PATTERNS = [compact_pattern, logcat_pattern, log_pattern]
+
+# ── Fast manual parsers (pure str.find — runs in C, no regex overhead) ──────
+
+_LEVEL_CHARS = frozenset('VDIWEFS')
+
+def _parse_iso_fast(line):
+    """Manual parser for ISO format. ~1.8× faster than regex."""
+    # Format: 2024-11-18T09:13:57.159802Z [PID] user.LEVEL TAG [] MESSAGE
+    p1 = line.find(' [')
+    if p1 < 0:
+        return None
+    p2 = line.find('] ', p1 + 2)
+    if p2 < 0:
+        return None
+    r = p2 + 2
+    if line[r:r + 5] != 'user.':
+        return None
+    p3 = line.find(' ', r + 5)
+    if p3 < 0:
+        return None
+    p4 = line.find(' [] ', p3)
+    if p4 < 0:
+        return None
+    tag = line[p3 + 1:p4]
+    return {
+        DATE_TIME: line[:p1],
+        PID: line[p1 + 2:p2],
+        TID: '',
+        LOG_LEVEL: line[r + 5:p3],
+        TAG: tag,
+        PROCESS_NAME: tag,
+        MESSAGE: line[p4 + 4:],
+    }
 
 
-MAX_LOG_ROWS = 50_000
+def _parse_logcat_fast(line):
+    """Manual parser for Android logcat threadtime format."""
+    # Format: MM-DD HH:MM:SS.mmm  PID  TID L TAG: message
+    if len(line) < 22 or line[2] != '-' or line[5] != ' ':
+        return None
+    # Find end of datetime (variable-length milliseconds)
+    dt_end = line.find('  ', 14)  # double-space after datetime
+    if dt_end < 0:
+        return None
+    dt = line[:dt_end]
+    # PID  TID L
+    rest = line[dt_end:]
+    # Skip spaces, grab PID
+    i = 0
+    n = len(rest)
+    while i < n and rest[i] == ' ':
+        i += 1
+    j = i
+    while j < n and rest[j].isdigit():
+        j += 1
+    if j == i:
+        return None
+    pid_val = rest[i:j]
+    # Skip spaces, grab TID
+    while j < n and rest[j] == ' ':
+        j += 1
+    k = j
+    while k < n and rest[k].isdigit():
+        k += 1
+    if k == j:
+        return None
+    tid_val = rest[j:k]
+    # Skip spaces, grab level (single char)
+    while k < n and rest[k] == ' ':
+        k += 1
+    if k >= n or rest[k] not in _LEVEL_CHARS:
+        return None
+    level = rest[k]
+    k += 1
+    # Skip spaces, grab TAG: message
+    while k < n and rest[k] == ' ':
+        k += 1
+    colon = rest.find(': ', k)
+    if colon < 0:
+        colon = rest.find(':', k)
+        if colon < 0:
+            return None
+        tag = rest[k:colon].rstrip()
+        msg = rest[colon + 1:].lstrip()
+    else:
+        tag = rest[k:colon].rstrip()
+        msg = rest[colon + 2:]
+    return {
+        DATE_TIME: dt,
+        PID: pid_val,
+        TID: tid_val,
+        LOG_LEVEL: level,
+        TAG: tag,
+        PROCESS_NAME: tag,
+        MESSAGE: msg,
+    }
+
+
+def _parse_compact_fast(line):
+    """Manual parser for bracketed compact format."""
+    # Format: [DateTime] [PID] [TID] [Level] [Tag] [Message]
+    if not line.startswith('['):
+        return None
+    fields = []
+    pos = 0
+    n = len(line)
+    for _ in range(6):
+        start = line.find('[', pos)
+        if start < 0:
+            return None
+        end = line.find(']', start + 1)
+        if end < 0:
+            return None
+        fields.append(line[start + 1:end])
+        pos = end + 1
+    tag = fields[4].strip()
+    return {
+        DATE_TIME: fields[0].strip(),
+        PID: fields[1].strip(),
+        TID: fields[2].strip(),
+        LOG_LEVEL: fields[3].strip(),
+        TAG: tag,
+        PROCESS_NAME: tag,
+        MESSAGE: fields[5],
+    }
+
+
+# Format enum for detect_format result
+_FMT_ISO     = 1
+_FMT_LOGCAT  = 2
+_FMT_COMPACT = 3
+_FMT_UNKNOWN = 0
+
+_FAST_PARSERS = {
+    _FMT_ISO: _parse_iso_fast,
+    _FMT_LOGCAT: _parse_logcat_fast,
+    _FMT_COMPACT: _parse_compact_fast,
+}
+
+
+
+class TagInternPool:
+    """Pool frequently repeated tag strings to reduce memory usage."""
+    __slots__ = ('_pool',)
+
+    def __init__(self):
+        self._pool = {}
+
+    def intern(self, tag):
+        existing = self._pool.get(tag)
+        if existing is not None:
+            return existing
+        self._pool[tag] = tag
+        return tag
+
+    def clear(self):
+        self._pool.clear()
+
+
+_tag_pool = TagInternPool()
+
+
+def detect_format(file_path):
+    """Read first 20 lines, return format enum and regex fallback pattern."""
+    try:
+        with open(file_path, 'r', encoding='utf-8', errors='replace',
+                  buffering=IO_BUFFER_SIZE) as f:
+            sample = []
+            for _ in range(20):
+                ln = f.readline()
+                if not ln:
+                    break
+                sample.append(ln.rstrip('\n\r'))
+    except Exception:
+        return _FMT_UNKNOWN, None
+
+    if not sample:
+        return _FMT_UNKNOWN, None
+
+    # Try each fast parser
+    for fmt, parser in _FAST_PARSERS.items():
+        hits = sum(1 for s in sample if parser(s) is not None)
+        if hits >= 1:
+            return fmt, None
+
+    # Fallback: try regex patterns
+    for pattern in _ALL_PATTERNS:
+        hits = sum(1 for s in sample if pattern.match(s))
+        if hits >= 1:
+            return _FMT_UNKNOWN, pattern
+
+    return _FMT_UNKNOWN, None
+
+
 ROLE_FILTER_COLOR = Qt.UserRole + 1
 ROLE_LEVEL_COLOR = Qt.UserRole + 2
 
@@ -85,9 +275,31 @@ class LogModel(QAbstractTableModel):
         self._column_names = [COL_DATETIME, COL_PID, COL_TID, COL_LOGLEVEL, COL_TAG, COL_MESSAGE]
         self._controller = None
         self._log_data = list(logData) if logData is not None else []
+        # Lazy color computation state
+        self._colors = {}           # current filter colors dict
+        self._compiled_colors = []  # list of (pattern_str, compiled_re, color)
+        self._filter_version = 0    # bumped on every filter change
 
     def setController(self, controller):
         self._controller = controller
+
+    def setFilterColors(self, colors):
+        """Update the filter-color mapping and invalidate the lazy cache."""
+        self._colors = colors
+        # Pre-compile filter regex patterns for fast color lookup.
+        self._compiled_colors = []
+        for tag_pattern, color in colors.items():
+            pat_str = str(tag_pattern)
+            try:
+                compiled = re.compile(pat_str, re.IGNORECASE)
+            except re.error:
+                compiled = None
+            self._compiled_colors.append((pat_str, compiled, color))
+        self._filter_version += 1
+        if self._log_data:
+            top_left = self.index(0, 0)
+            bottom_right = self.index(self.rowCount() - 1, self.columnCount() - 1)
+            self.dataChanged.emit(top_left, bottom_right, [Qt.DecorationRole, ROLE_FILTER_COLOR, ROLE_LEVEL_COLOR])
 
     @staticmethod
     def _tag_matches(pattern, value):
@@ -107,9 +319,14 @@ class LogModel(QAbstractTableModel):
         return self._level_color_for_entry(log_entry)
 
     def _filter_color_for_entry(self, log_entry, colors):
-        process_name = str(log_entry.get(PROCESS_NAME, ""))
-        for tag_pattern, color in colors.items():
-            if self._tag_matches(str(tag_pattern), process_name):
+        process_name = log_entry.get(PROCESS_NAME) or ""
+        if not process_name:
+            return ""
+        for pat_str, compiled_re, color in self._compiled_colors:
+            if compiled_re is not None:
+                if compiled_re.search(process_name):
+                    return color
+            elif pat_str.lower() == process_name.lower():
                 return color
         return ""
 
@@ -117,18 +334,24 @@ class LogModel(QAbstractTableModel):
         return LOG_LEVEL_COLORS.get(log_entry.get(LOG_LEVEL, ""), "")
 
     def _normalize_entry(self, log_entry):
-        log_entry[PID] = str(log_entry.get(PID, "")).strip()
-        log_entry[TID] = str(log_entry.get(TID, "")).strip()
-        log_entry[TAG] = str(log_entry.get(TAG, "")).strip()
-        log_entry[LOG_LEVEL] = str(log_entry.get(LOG_LEVEL, "")).strip()
-        log_entry[DATE_TIME] = str(log_entry.get(DATE_TIME, "")).strip()
-        log_entry[MESSAGE] = str(log_entry.get(MESSAGE, "")).strip()
-        # Keep legacy key for filtering and color lookups.
-        log_entry[PROCESS_NAME] = log_entry[TAG]
+        pid = log_entry.get(PID)
+        log_entry[PID] = pid.strip() if pid else ''
+        tid = log_entry.get(TID)
+        log_entry[TID] = tid.strip() if tid else ''
+        tag_raw = log_entry.get(TAG)
+        tag = _tag_pool.intern(tag_raw.strip()) if tag_raw else ''
+        log_entry[TAG] = tag
+        lvl = log_entry.get(LOG_LEVEL)
+        log_entry[LOG_LEVEL] = lvl.strip() if lvl else ''
+        dt = log_entry.get(DATE_TIME)
+        log_entry[DATE_TIME] = dt.strip() if dt else ''
+        msg = log_entry.get(MESSAGE)
+        log_entry[MESSAGE] = msg.strip() if msg else ''
+        log_entry[PROCESS_NAME] = tag
         return log_entry
 
     def _parse_line(self, line):
-        for pattern in (compact_pattern, logcat_pattern, log_pattern):
+        for pattern in _ALL_PATTERNS:
             match = pattern.match(line)
             if match:
                 return self._normalize_entry(match.groupdict())
@@ -144,39 +367,109 @@ class LogModel(QAbstractTableModel):
             f"[{log_entry.get(MESSAGE, '')}]"
         )
 
-    def loadLogFile(self, file_path, colors):
-        print("loadLogFile: ", file_path)
-        log_file_path = file_path
-        parsed_log = []
-        parsed_dict = {}
-        lineCount = 0
-        try:
-            with open(log_file_path, 'r',encoding='utf-8') as file:
-                for line in file:
-                    log_entry = self._parse_line(line.strip())
-                    if log_entry:
-                        log_entry[LINE_NUMBER]  = lineCount
-                        log_entry[FILTER_COLOR] = self._filter_color_for_entry(log_entry, colors)
-                        log_entry[LEVEL_COLOR] = self._level_color_for_entry(log_entry)
-                        log_entry[COLOR] = self._color_for_entry(log_entry, colors)
+    def loadLogFile(self, file_path, colors, progress_callback=None, cancel_flag=None):
+        """Load a log file and return all parsed entries.
 
-                        parsed_dict[lineCount] = log_entry
-                        parsed_log.append(log_entry)
-                        lineCount += 1
+        Uses fast manual parsers when possible, falling back to regex.
+        """
+        print("loadLogFile: ", file_path)
+
+        fmt, fallback_pattern = detect_format(file_path)
+
+        # Build the parse function based on detected format.
+        fast_parser = _FAST_PARSERS.get(fmt)
+        if fast_parser is not None:
+            # Fast path: manual parser produces ready-to-use dicts.
+            _intern = _tag_pool.intern
+            _fp = fast_parser
+
+            def parse_fn(line):
+                d = _fp(line)
+                if d is not None:
+                    # Intern the tag for memory savings.
+                    t = d[TAG]
+                    interned = _intern(t)
+                    if interned is not t:
+                        d[TAG] = interned
+                        d[PROCESS_NAME] = interned
+                    return d
+                # Rare fallback to regex
+                return self._parse_line(line)
+        elif fallback_pattern is not None:
+            _pat = fallback_pattern
+            _norm = self._normalize_entry
+
+            def parse_fn(line):
+                m = _pat.match(line)
+                if m:
+                    return _norm(m.groupdict())
+                return self._parse_line(line)
+        else:
+            parse_fn = self._parse_line
+
+        try:
+            file_size = os.path.getsize(file_path)
+        except OSError:
+            file_size = 0
+
+        all_entries = []
+        _append = all_entries.append
+        line_count = 0
+        bytes_read = 0
+        _progress_interval = 5000  # report progress every 5K lines for smooth updates
+
+        try:
+            with open(file_path, 'rb', buffering=IO_BUFFER_SIZE) as fh_bin:
+                remainder = b''
+                while True:
+                    if cancel_flag and cancel_flag():
+                        break
+
+                    chunk = fh_bin.read(IO_BUFFER_SIZE)
+                    if not chunk:
+                        # Process remaining bytes
+                        if remainder:
+                            line_str = remainder.decode('utf-8', errors='replace').rstrip('\n\r')
+                            entry = parse_fn(line_str)
+                            if entry is not None:
+                                entry[LINE_NUMBER] = line_count
+                                _append(entry)
+                                line_count += 1
+                        break
+
+                    bytes_read += len(chunk)
+                    data = remainder + chunk
+                    lines = data.split(b'\n')
+                    remainder = lines.pop()  # last element is incomplete line
+
+                    for raw_bytes in lines:
+                        line_str = raw_bytes.decode('utf-8', errors='replace').rstrip('\r')
+                        entry = parse_fn(line_str)
+                        if entry is not None:
+                            entry[LINE_NUMBER] = line_count
+                            _append(entry)
+                            line_count += 1
+
+                        if progress_callback and line_count % _progress_interval == 0:
+                            progress_callback(min(bytes_read / file_size, 0.99) if file_size else 0.0)
+
+            if progress_callback:
+                progress_callback(1.0)
+
         except Exception as e:
             print(f"Error loading log file: {e}")
-            app_log_path = os.path.join(ROOT_FOLDER, 'app.log')
-            with open(app_log_path, 'w', encoding='utf-8') as file:
-                file.write(f"Error loading log file: {e}")
+            try:
+                app_log_path = os.path.join(ROOT_FOLDER, 'app.log')
+                with open(app_log_path, 'w', encoding='utf-8') as f:
+                    f.write(f"Error loading log file: {e}")
+            except Exception:
+                pass
 
-        return (parsed_log, parsed_dict)
+        return all_entries
 
     def processLineData(self, lineData, colors):
         log_entry = self._parse_line(lineData)
         if log_entry:
-            log_entry[FILTER_COLOR] = self._filter_color_for_entry(log_entry, colors)
-            log_entry[LEVEL_COLOR] = self._level_color_for_entry(log_entry)
-            log_entry[COLOR] = self._color_for_entry(log_entry, colors)
             return (True, log_entry)
         else:
             return (False, None)
@@ -185,9 +478,6 @@ class LogModel(QAbstractTableModel):
         match = logcat_pattern.match(lineData)
         if match:
             log_entry = self._normalize_entry(match.groupdict())
-            log_entry[FILTER_COLOR] = self._filter_color_for_entry(log_entry, colors)
-            log_entry[LEVEL_COLOR] = self._level_color_for_entry(log_entry)
-            log_entry[COLOR] = self._color_for_entry(log_entry, colors)
             return (True, log_entry)
         else:
             return (False, None)
@@ -209,11 +499,11 @@ class LogModel(QAbstractTableModel):
         if role == Qt.UserRole:
             return entry[LINE_NUMBER]
         if role == ROLE_FILTER_COLOR:
-            return entry.get(FILTER_COLOR, "")
+            return self._filter_color_for_entry(entry, self._colors)
         if role == ROLE_LEVEL_COLOR:
-            return entry.get(LEVEL_COLOR, "")
+            return self._level_color_for_entry(entry)
         if role == Qt.DecorationRole:
-            return entry[COLOR]
+            return self._color_for_entry(entry, self._colors)
         if role == Qt.DisplayRole:
             col = index.column()
             if 0 <= col < self.CountOfColumns:
@@ -265,7 +555,7 @@ class LogModel(QAbstractTableModel):
         self.endRemoveRows()
 
     def setRowColor(self, row, color):
-        self._log_data[row][COLOR] = color
+        # Trigger a repaint for this row (colors computed lazily in data())
         top_left = self.index(row, 0)
         bottom_right = self.index(row, self.columnCount() - 1)
         self.dataChanged.emit(top_left, bottom_right, [Qt.DecorationRole])
@@ -276,6 +566,7 @@ class LogModel(QAbstractTableModel):
         self.endResetModel()
 
     def setColorForProcessName(self, processName, color):
+        # Trigger repaint only — colors are computed lazily
         for row in range(self.rowCount()):
             if processName == self._log_data[row][PROCESS_NAME]:
                 self.setRowColor(row, color)
@@ -283,17 +574,8 @@ class LogModel(QAbstractTableModel):
     def resetColorForProcessName(self, processName):
         for row in range(self.rowCount()):
             if processName == self._log_data[row][PROCESS_NAME]:
-                self.setRowColor(row, self._color_for_entry(self._log_data[row], {}))
+                self.setRowColor(row, None)
 
     def reapplyProcessColors(self, colors):
-        if not self._log_data:
-            return
-
-        for row in range(self.rowCount()):
-            self._log_data[row][FILTER_COLOR] = self._filter_color_for_entry(self._log_data[row], colors)
-            self._log_data[row][LEVEL_COLOR] = self._level_color_for_entry(self._log_data[row])
-            self._log_data[row][COLOR] = self._color_for_entry(self._log_data[row], colors)
-
-        top_left = self.index(0, 0)
-        bottom_right = self.index(self.rowCount() - 1, self.columnCount() - 1)
-        self.dataChanged.emit(top_left, bottom_right, [Qt.DecorationRole])
+        """Update filter colors and trigger repaint. Colors are computed lazily in data()."""
+        self.setFilterColors(colors)

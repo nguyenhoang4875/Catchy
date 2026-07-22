@@ -449,7 +449,7 @@ Item {
                 clip: true
                 anchors.leftMargin: 4
                 anchors.rightMargin: 4
-                textFormat: TextEdit.RichText
+                textFormat: (root.highlight && isLastColumn) ? Text.RichText : Text.PlainText
                 z: 10
                 // readOnly: true
             }

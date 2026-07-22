@@ -1,9 +1,9 @@
 # This Python file uses the following encoding: utf-8
-from PySide6.QtCore import QObject, Slot, QThread, Signal, Property, QModelIndex, QMimeData, QSortFilterProxyModel, QTimer
+from PySide6.QtCore import QObject, Slot, QThread, Signal, Property, QModelIndex, QMimeData, QTimer
 from PySide6.QtGui import QGuiApplication, QClipboard, QColor
 from PySide6.QtWidgets import QFileDialog
 from components._FilterLog import FilterLog
-from components._LogViewModel import LogModel
+from components._LogViewModel import LogModel, LINE_NUMBER
 from components._Worker import Worker
 from components._SearchLog import SearchLog
 from components._Configurations import Configurations
@@ -12,7 +12,7 @@ from components._Bookmark import Bookmark
 from components._Toast import Toast, TOAST
 from components._Helper import *
 from components._SortFilterProxyModel import SortFilterProxyModel
-from components._Defines import SOURCE_FILE, SOURCE_LOGCAT, SOURCE_SSH
+from components._Defines import SOURCE_FILE, SOURCE_LOGCAT, SOURCE_SSH, MAX_LOG_ROWS, WRITE_CHUNK_SIZE, IO_BUFFER_SIZE
 import pyperclip
 import re
 import os
@@ -27,7 +27,6 @@ import shutil
 from collections import deque
 from pathlib import Path
 ROOT_FOLDER     = "C:/QtLogViewer"
-LINE_NUMBER     = "line_number"
 STREAM_FLAG     = "C:/QtLogViewer/stream.txt"
 
 class Controller(QObject):
@@ -44,6 +43,11 @@ class Controller(QObject):
     adbDevicesAvailableChanged  = Signal()
     scrcpyAutoShowChanged       = Signal()
     scrcpyRunningChanged        = Signal()
+    loadProgressChanged         = Signal()
+    loadingFileNameChanged      = Signal()
+    isLoadingChanged            = Signal()
+    isSavingChanged             = Signal()
+    saveProgressChanged         = Signal()
     def __init__(self, parent=None):
         super().__init__(parent)
         self.create()
@@ -71,12 +75,18 @@ class Controller(QObject):
         filterPath = self._configs.getConfigs()["filter"]["path"]
         self.filterLog.create(filterPath)
         self._originalFilters = self.filterLog.originalFilters()
-        self._logDict           = {}
         self._nextLineNum       = 0
+        self._trimmedOffset     = 0     # tracks rows trimmed from front for index calculation
         self._detailsText       = ""
         self._highlightLineNum  = -1
         self._logcatBuffer      = deque()
         self._streamBuffer      = deque()
+        self._loadCancelled     = False
+        self._loadProgress      = 0.0
+        self._loadingFileName   = ""
+        self._isLoading         = False
+        self._isSaving          = False
+        self._saveProgressVal   = 0.0
 
         self._logcatFlushTimer = QTimer(self)
         self._logcatFlushTimer.setInterval(100)
@@ -260,6 +270,51 @@ class Controller(QObject):
         self._scrcpyRunning = value
         self.scrcpyRunningChanged.emit()
 
+    @Property(float, notify=loadProgressChanged)
+    def loadProgress(self):
+        return self._loadProgress
+
+    @loadProgress.setter
+    def loadProgress(self, val):
+        self._loadProgress = val
+        self.loadProgressChanged.emit()
+
+    @Property(str, notify=loadingFileNameChanged)
+    def loadingFileName(self):
+        return self._loadingFileName
+
+    @loadingFileName.setter
+    def loadingFileName(self, val):
+        self._loadingFileName = val
+        self.loadingFileNameChanged.emit()
+
+    @Property(bool, notify=isLoadingChanged)
+    def isLoading(self):
+        return self._isLoading
+
+    @isLoading.setter
+    def isLoading(self, val):
+        self._isLoading = val
+        self.isLoadingChanged.emit()
+
+    @Property(bool, notify=isSavingChanged)
+    def isSaving(self):
+        return self._isSaving
+
+    @isSaving.setter
+    def isSaving(self, val):
+        self._isSaving = val
+        self.isSavingChanged.emit()
+
+    @Property(float, notify=saveProgressChanged)
+    def saveProgress(self):
+        return self._saveProgressVal
+
+    @saveProgress.setter
+    def saveProgress(self, val):
+        self._saveProgressVal = val
+        self.saveProgressChanged.emit()
+
     def _resolveScrcpyExecutable(self):
         candidate_paths = [
             Path(__file__).resolve().parent.parent / "assets" / "software" / "scrcpy" / "scrcpy.exe",
@@ -375,8 +430,8 @@ class Controller(QObject):
             self.logSourceChanged.emit()
             return
         self.logviewModel.updateData([])
-        self._logDict = {}
         self._nextLineNum = 0
+        self._trimmedOffset = 0
         self._logcatBuffer.clear()
         self.logViewReady = True
         self.helper.autoScrollDown = True
@@ -439,20 +494,19 @@ class Controller(QObject):
         self._batchInsert(entries)
 
     def _assignLineNums(self, entries):
-        """Assign sequential line numbers and update _logDict. O(batch_size)."""
+        """Assign sequential line numbers. O(batch_size)."""
         for entry in entries:
             entry[LINE_NUMBER] = self._nextLineNum
-            self._logDict[self._nextLineNum] = entry
             self._nextLineNum += 1
 
     def _batchInsert(self, entries):
-        """Insert entries, trimming oldest rows if over MAX_LOG_ROWS."""
-        from components._LogViewModel import MAX_LOG_ROWS
+        """Insert entries, trimming oldest rows if over MAX_LOG_ROWS (live streams only)."""
         current = self.logviewModel.rowCount()
         total = current + len(entries)
         if total > MAX_LOG_ROWS:
             excess = total - MAX_LOG_ROWS
             self.logviewModel.trimRows(excess)
+            self._trimmedOffset += excess
         self.logviewModel.addRows(entries)
 
     def _onLogcatStopped(self, result):
@@ -463,8 +517,10 @@ class Controller(QObject):
     @Slot(int)
     def showLogDetails(self, line):
         print("showLogDetails: ", line)
-        logline = self._logDict[line]
-        self.detailsText = self.logviewModel.format_log_line(logline)
+        idx = line - self._trimmedOffset
+        if 0 <= idx < len(self.logviewModel._log_data):
+            logline = self.logviewModel._log_data[idx]
+            self.detailsText = self.logviewModel.format_log_line(logline)
 
     def getLogViewModel(self):
         return self.logviewModel
@@ -493,11 +549,61 @@ class Controller(QObject):
         file_dialog.setNameFilter("All files (*.*);;Log files (*.log)")
         if file_dialog.exec():
             selected_file = file_dialog.selectedFiles()[0]
-            self.worker = Worker(self.loadLogFile, selected_file)
+            self._loadCancelled = False
+            self.loadingFileName = os.path.basename(selected_file)
+            self.loadProgress = 0.0
+            self.isLoading = True
+            self.showLoadingScreen = True
+            self.logviewModel.updateData([])
+            self._nextLineNum = 0
+            self._trimmedOffset = 0
+
+            self.worker = Worker(self._loadFileBatched, selected_file)
+            self.worker.batchLoaded.connect(self._onBatchLoaded)
             self.worker.moveToThread(self._loadLogFileThread)
-            self.worker.taskCompleted.connect(self.onLogFileLoaded)
+            self.worker.taskCompleted.connect(self._onFileLoadComplete)
             self._loadLogFileThread.started.connect(self.worker.run)
             self._loadLogFileThread.start()
+
+    @Slot()
+    def cancelLoad(self):
+        """Cancel an in-progress file load."""
+        self._loadCancelled = True
+
+    def _loadFileBatched(self, file_path):
+        """Worker task: load entire file in worker thread, emitting progress only."""
+        colors = self.filterLog.colors()
+        self.logviewModel.setFilterColors(colors)
+
+        def on_progress(pct):
+            # Cross-thread signal carries only a float — no data copy overhead.
+            self.worker.batchLoaded.emit(None, pct)
+
+        entries = self.logviewModel.loadLogFile(
+            file_path, colors,
+            progress_callback=on_progress,
+            cancel_flag=lambda: self._loadCancelled
+        )
+        return entries
+
+    def _onBatchLoaded(self, entries, progress):
+        """Slot called on main thread — only updates progress bar, no model changes."""
+        self.loadProgress = progress
+
+    def _onFileLoadComplete(self, all_entries):
+        """Slot called when file loading finishes — single model reset."""
+        self._loadLogFileThread.quit()
+        self._loadLogFileThread.wait()
+        # One beginResetModel/endResetModel is far faster than N×addRows.
+        self.logviewModel.updateData(all_entries)
+        self._nextLineNum = len(all_entries)
+        self._trimmedOffset = 0
+        self.loadProgress = 1.0
+        self.isLoading = False
+        self.showLoadingScreen = False
+        self.logViewReady = True
+        self.loadLogFileCompleted.emit()
+        self.toast.show(TOAST.INFO, f"Loaded {len(all_entries):,} records")
 
     @Slot()
     def saveLogFile(self):
@@ -514,6 +620,8 @@ class Controller(QObject):
         
         if file_dialog.exec():
             selected_file = file_dialog.selectedFiles()[0]
+            self.isSaving = True
+            self.saveProgress = 0.0
             self.worker = Worker(self._writeLogToFile, selected_file)
             self.worker.moveToThread(self._loadLogFileThread)
             self.worker.taskCompleted.connect(self.onLogFileSaved)
@@ -521,13 +629,27 @@ class Controller(QObject):
             self._loadLogFileThread.start()
 
     def _writeLogToFile(self, file_path):
-        """Write the current log data to a file"""
+        """Write the current log data to a file in chunks for performance."""
         try:
             log_data = self.logviewModel._log_data
-            with open(file_path, 'w', encoding='utf-8') as file:
-                for log_entry in log_data:
-                    log_line = self.logviewModel.format_log_line(log_entry) + "\n"
-                    file.write(log_line)
+            total = len(log_data)
+            if total == 0:
+                return True
+
+            with open(file_path, 'w', encoding='utf-8',
+                      buffering=IO_BUFFER_SIZE) as file:
+                for start in range(0, total, WRITE_CHUNK_SIZE):
+                    end = min(start + WRITE_CHUNK_SIZE, total)
+                    chunk_lines = []
+                    for i in range(start, end):
+                        chunk_lines.append(self.logviewModel.format_log_line(log_data[i]))
+                    file.write('\n'.join(chunk_lines))
+                    if end < total:
+                        file.write('\n')
+                    self._saveProgressVal = end / total
+                    self.saveProgressChanged.emit()
+                # Final newline
+                file.write('\n')
             return True
         except Exception as e:
             print(f"Error saving log file: {e}")
@@ -537,22 +659,27 @@ class Controller(QObject):
     def onLogFileSaved(self, success):
         self._loadLogFileThread.quit()
         self._loadLogFileThread.wait()
+        self.isSaving = False
+        self.saveProgress = 0.0
         if success:
             self.toast.show(TOAST.INFO, "Log file saved successfully")
         else:
             self.toast.show(TOAST.ERROR, "Failed to save log file")
 
     def loadLogFile(self, file_path):
+        """Load a file synchronously (used by streaming initial load)."""
         print("loadLogFile: ", file_path)
-        return self.logviewModel.loadLogFile(file_path, self.filterLog.colors())
+        colors = self.filterLog.colors()
+        self.logviewModel.setFilterColors(colors)
+        return self.logviewModel.loadLogFile(file_path, colors)
 
     @Slot(list)
     def onLogFileLoaded(self, result):
         self._loadLogFileThread.quit()
         self._loadLogFileThread.wait()
-        (parsed_log, parsed_dict) = result
-        self._logDict = parsed_dict
-        self._nextLineNum = len(parsed_dict)
+        parsed_log = result
+        self._nextLineNum = len(parsed_log)
+        self._trimmedOffset = 0
         self.logviewModel.updateData(parsed_log)
         self.logViewReady = True
         self.loadLogFileCompleted.emit()
@@ -570,9 +697,9 @@ class Controller(QObject):
     def onStreamingLogFileLoaded(self, result):
         self._loadLogFileThread.quit()
         self._loadLogFileThread.wait()
-        (parsed_log, parsed_dict) = result
-        self._logDict = parsed_dict
-        self._nextLineNum = len(parsed_dict)
+        parsed_log = result
+        self._nextLineNum = len(parsed_log)
+        self._trimmedOffset = 0
         self.logviewModel.updateData(parsed_log)
         self.logViewReady = True
         self.loadLogFileCompleted.emit()
@@ -636,7 +763,6 @@ class Controller(QObject):
         (isSuccess, log_entry) = self.logviewModel.processLineData(line, self.filterLog.colors())
         if isSuccess:
             log_entry[LINE_NUMBER] = self._nextLineNum
-            self._logDict[self._nextLineNum] = log_entry
             self._nextLineNum += 1
             self.logviewModel.addRow(log_entry)
         else:
@@ -1204,8 +1330,8 @@ class Controller(QObject):
         self._logcatBuffer.clear()
         self._streamBuffer.clear()
         self.logviewModel.updateData([])
-        self._logDict = {}
         self._nextLineNum = 0
+        self._trimmedOffset = 0
         try:
             subprocess.run(
                 ["adb", "logcat", "-c"],
@@ -1254,7 +1380,10 @@ class Controller(QObject):
     
     @Slot(int, result=str)
     def getLogMessage(self, lineNum):
-        return self._logDict[lineNum]["message"]
+        idx = lineNum - self._trimmedOffset
+        if 0 <= idx < len(self.logviewModel._log_data):
+            return self.logviewModel._log_data[idx].get("message", "")
+        return ""
     
     
     def remove_line_with_ip(self, ip_address):
