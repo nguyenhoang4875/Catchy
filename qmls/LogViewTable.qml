@@ -44,35 +44,39 @@ Item {
 
     function applyColumnLayout() {
         if (controller.showLessColumns) {
-            // Compact mode: keep Tag visible and let Message take the rest.
-            logHeaderModel.setProperty(0, "size", 0)
-            logHeaderModel.setProperty(0, "resizeable", false)
+            // Compact mode: keep Line, Tag visible and let Message take the rest.
+            logHeaderModel.setProperty(0, "size", 0.04)
+            logHeaderModel.setProperty(0, "resizeable", true)
             logHeaderModel.setProperty(1, "size", 0)
             logHeaderModel.setProperty(1, "resizeable", false)
             logHeaderModel.setProperty(2, "size", 0)
             logHeaderModel.setProperty(2, "resizeable", false)
             logHeaderModel.setProperty(3, "size", 0)
             logHeaderModel.setProperty(3, "resizeable", false)
-            logHeaderModel.setProperty(4, "size", 0.20)
-            logHeaderModel.setProperty(4, "resizeable", true)
-            logHeaderModel.setProperty(5, "size", 0)
+            logHeaderModel.setProperty(4, "size", 0)
+            logHeaderModel.setProperty(4, "resizeable", false)
+            logHeaderModel.setProperty(5, "size", 0.20)
             logHeaderModel.setProperty(5, "resizeable", true)
+            logHeaderModel.setProperty(6, "size", 0)
+            logHeaderModel.setProperty(6, "resizeable", true)
             return
         }
 
-        // Full mode tab units: Date Time 2, PID 1, TID 1, Level 1, Tag 3, Message remaining.
-        logHeaderModel.setProperty(0, "size", 0.12)
+        // Full mode: Line, Date Time, PID, TID, Level, Tag, Message (remaining).
+        logHeaderModel.setProperty(0, "size", 0.04)
         logHeaderModel.setProperty(0, "resizeable", true)
-        logHeaderModel.setProperty(1, "size", 0.04)
+        logHeaderModel.setProperty(1, "size", 0.12)
         logHeaderModel.setProperty(1, "resizeable", true)
         logHeaderModel.setProperty(2, "size", 0.04)
         logHeaderModel.setProperty(2, "resizeable", true)
         logHeaderModel.setProperty(3, "size", 0.04)
         logHeaderModel.setProperty(3, "resizeable", true)
-        logHeaderModel.setProperty(4, "size", 0.20)
+        logHeaderModel.setProperty(4, "size", 0.04)
         logHeaderModel.setProperty(4, "resizeable", true)
-        logHeaderModel.setProperty(5, "size", 0)
+        logHeaderModel.setProperty(5, "size", 0.20)
         logHeaderModel.setProperty(5, "resizeable", true)
+        logHeaderModel.setProperty(6, "size", 0)
+        logHeaderModel.setProperty(6, "resizeable", true)
     }
     onHighlightLineNumChanged: {
         if (root.tableType === LogViewTable.TableType.ViewTable) {
@@ -187,6 +191,7 @@ Item {
 
     ListModel {
         id: logHeaderModel
+        ListElement { title: "Line";            size: 0.04 ;    resizeable: true }
         ListElement { title: "Date Time";       size: 0.12 ;    resizeable: true }
         ListElement { title: "PID";             size: 0.04 ;    resizeable: true }
         ListElement { title: "TID";             size: 0.04 ;    resizeable: true }

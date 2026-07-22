@@ -75,7 +75,7 @@ class Controller(QObject):
         filterPath = self._configs.getConfigs()["filter"]["path"]
         self.filterLog.create(filterPath)
         self._originalFilters = self.filterLog.originalFilters()
-        self._nextLineNum       = 0
+        self._nextLineNum       = 1
         self._trimmedOffset     = 0     # tracks rows trimmed from front for index calculation
         self._detailsText       = ""
         self._highlightLineNum  = -1
@@ -430,7 +430,7 @@ class Controller(QObject):
             self.logSourceChanged.emit()
             return
         self.logviewModel.updateData([])
-        self._nextLineNum = 0
+        self._nextLineNum = 1
         self._trimmedOffset = 0
         self._logcatBuffer.clear()
         self.logViewReady = True
@@ -517,7 +517,7 @@ class Controller(QObject):
     @Slot(int)
     def showLogDetails(self, line):
         print("showLogDetails: ", line)
-        idx = line - self._trimmedOffset
+        idx = line - 1 - self._trimmedOffset
         if 0 <= idx < len(self.logviewModel._log_data):
             logline = self.logviewModel._log_data[idx]
             self.detailsText = self.logviewModel.format_log_line(logline)
@@ -555,7 +555,7 @@ class Controller(QObject):
             self.isLoading = True
             self.showLoadingScreen = True
             self.logviewModel.updateData([])
-            self._nextLineNum = 0
+            self._nextLineNum = 1
             self._trimmedOffset = 0
 
             self.worker = Worker(self._loadFileBatched, selected_file)
@@ -596,7 +596,7 @@ class Controller(QObject):
         self._loadLogFileThread.wait()
         # One beginResetModel/endResetModel is far faster than N×addRows.
         self.logviewModel.updateData(all_entries)
-        self._nextLineNum = len(all_entries)
+        self._nextLineNum = len(all_entries) + 1
         self._trimmedOffset = 0
         self.loadProgress = 1.0
         self.isLoading = False
@@ -678,7 +678,7 @@ class Controller(QObject):
         self._loadLogFileThread.quit()
         self._loadLogFileThread.wait()
         parsed_log = result
-        self._nextLineNum = len(parsed_log)
+        self._nextLineNum = len(parsed_log) + 1
         self._trimmedOffset = 0
         self.logviewModel.updateData(parsed_log)
         self.logViewReady = True
@@ -698,7 +698,7 @@ class Controller(QObject):
         self._loadLogFileThread.quit()
         self._loadLogFileThread.wait()
         parsed_log = result
-        self._nextLineNum = len(parsed_log)
+        self._nextLineNum = len(parsed_log) + 1
         self._trimmedOffset = 0
         self.logviewModel.updateData(parsed_log)
         self.logViewReady = True
@@ -1330,7 +1330,7 @@ class Controller(QObject):
         self._logcatBuffer.clear()
         self._streamBuffer.clear()
         self.logviewModel.updateData([])
-        self._nextLineNum = 0
+        self._nextLineNum = 1
         self._trimmedOffset = 0
         try:
             subprocess.run(
@@ -1380,7 +1380,7 @@ class Controller(QObject):
     
     @Slot(int, result=str)
     def getLogMessage(self, lineNum):
-        idx = lineNum - self._trimmedOffset
+        idx = lineNum - 1 - self._trimmedOffset
         if 0 <= idx < len(self.logviewModel._log_data):
             return self.logviewModel._log_data[idx].get("message", "")
         return ""

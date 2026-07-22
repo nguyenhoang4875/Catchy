@@ -12,6 +12,7 @@ TAG             = "tag"
 PROCESS_NAME    = "process_name"
 MESSAGE         = "message"
 
+COL_LINE        = "Line"
 COL_DATETIME    = "Date Time"
 COL_PID         = "PID"
 COL_TID         = "TID"
@@ -259,20 +260,21 @@ ROLE_FILTER_COLOR = Qt.UserRole + 1
 ROLE_LEVEL_COLOR = Qt.UserRole + 2
 
 class LogModel(QAbstractTableModel):
-    ColumnDatetime      = 0
-    ColumnPid           = 1
-    ColumnTid           = 2
-    ColumnLogLevel      = 3
-    ColumnTag           = 4
-    ColumnMessage       = 5
-    CountOfColumns      = 6
+    ColumnLine          = 0
+    ColumnDatetime      = 1
+    ColumnPid           = 2
+    ColumnTid           = 3
+    ColumnLogLevel      = 4
+    ColumnTag           = 5
+    ColumnMessage       = 6
+    CountOfColumns      = 7
 
     # Ordered list of dict keys matching column indices — avoids if-elif in data()
-    _DISPLAY_COLS = [DATE_TIME, PID, TID, LOG_LEVEL, TAG, MESSAGE]
+    _DISPLAY_COLS = [LINE_NUMBER, DATE_TIME, PID, TID, LOG_LEVEL, TAG, MESSAGE]
 
     def __init__(self, logData, parent=None):
         super().__init__(parent)
-        self._column_names = [COL_DATETIME, COL_PID, COL_TID, COL_LOGLEVEL, COL_TAG, COL_MESSAGE]
+        self._column_names = [COL_LINE, COL_DATETIME, COL_PID, COL_TID, COL_LOGLEVEL, COL_TAG, COL_MESSAGE]
         self._controller = None
         self._log_data = list(logData) if logData is not None else []
         # Lazy color computation state
@@ -414,7 +416,7 @@ class LogModel(QAbstractTableModel):
 
         all_entries = []
         _append = all_entries.append
-        line_count = 0
+        line_count = 1
         bytes_read = 0
         _progress_interval = 5000  # report progress every 5K lines for smooth updates
 
