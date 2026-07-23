@@ -4,7 +4,7 @@ from bisect import bisect_left, bisect_right
 import re
 
 # Column keys for direct _log_data access.
-_SEARCH_KEYS = ('tag', 'message', 'datetime', 'pid', 'tid', 'log_level')
+_SEARCH_KEYS = ('message',)
 
 
 class SortFilterProxyModel(QAbstractTableModel):

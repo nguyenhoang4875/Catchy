@@ -53,7 +53,7 @@ compact_pattern = re.compile(
 )
 
 logcat_pattern = re.compile(
-    r'(?P<datetime>\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d+)\s+'
+    r'(?P<datetime>(?:\d{4}-)?\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d+)\s+'
     r'(?P<pid>\d+)\s+'
     r'(?P<tid>\d+)\s+'
     r'(?P<log_level>[VDIWEFS])\s+'
@@ -68,97 +68,41 @@ _ALL_PATTERNS = [compact_pattern, logcat_pattern, log_pattern]
 _LEVEL_CHARS = frozenset('VDIWEFS')
 
 def _parse_iso_fast(line):
-    """Manual parser for ISO format. ~1.8× faster than regex."""
-    # Format: 2024-11-18T09:13:57.159802Z [PID] user.LEVEL TAG [] MESSAGE
-    p1 = line.find(' [')
-    if p1 < 0:
+    """Regex-based parser for ISO format.
+    Format: 2024-11-18T09:13:57.159802Z [PID] user.LEVEL TAG [] MESSAGE
+    """
+    m = log_pattern.match(line)
+    if m is None:
         return None
-    p2 = line.find('] ', p1 + 2)
-    if p2 < 0:
-        return None
-    r = p2 + 2
-    if line[r:r + 5] != 'user.':
-        return None
-    p3 = line.find(' ', r + 5)
-    if p3 < 0:
-        return None
-    p4 = line.find(' [] ', p3)
-    if p4 < 0:
-        return None
-    tag = line[p3 + 1:p4]
+    tag = m.group('tag').strip()
     return {
-        DATE_TIME: line[:p1],
-        PID: line[p1 + 2:p2],
-        TID: '',
-        LOG_LEVEL: line[r + 5:p3],
-        TAG: tag,
+        DATE_TIME:    m.group('datetime'),
+        PID:          m.group('pid'),
+        TID:          '',
+        LOG_LEVEL:    m.group('log_level'),
+        TAG:          tag,
         PROCESS_NAME: tag,
-        MESSAGE: line[p4 + 4:],
+        MESSAGE:      m.group('message'),
     }
 
 
-def _parse_logcat_fast(line):
-    """Manual parser for Android logcat threadtime format."""
-    # Format: MM-DD HH:MM:SS.mmm  PID  TID L TAG: message
-    if len(line) < 22 or line[2] != '-' or line[5] != ' ':
-        return None
-    # Find end of datetime (variable-length milliseconds)
-    dt_end = line.find('  ', 14)  # double-space after datetime
-    if dt_end < 0:
-        return None
-    dt = line[:dt_end]
-    # PID  TID L
-    rest = line[dt_end:]
-    # Skip spaces, grab PID
-    i = 0
-    n = len(rest)
-    while i < n and rest[i] == ' ':
-        i += 1
-    j = i
-    while j < n and rest[j].isdigit():
-        j += 1
-    if j == i:
-        return None
-    pid_val = rest[i:j]
-    # Skip spaces, grab TID
-    while j < n and rest[j] == ' ':
-        j += 1
-    k = j
-    while k < n and rest[k].isdigit():
-        k += 1
-    if k == j:
-        return None
-    tid_val = rest[j:k]
-    # Skip spaces, grab level (single char)
-    while k < n and rest[k] == ' ':
-        k += 1
-    if k >= n or rest[k] not in _LEVEL_CHARS:
-        return None
-    level = rest[k]
-    k += 1
-    # Skip spaces, grab TAG: message
-    while k < n and rest[k] == ' ':
-        k += 1
-    colon = rest.find(': ', k)
-    if colon < 0:
-        colon = rest.find(':', k)
-        if colon < 0:
-            return None
-        tag = rest[k:colon].rstrip()
-        msg = rest[colon + 1:].lstrip()
-    else:
-        tag = rest[k:colon].rstrip()
-        msg = rest[colon + 2:]
-    return {
-        DATE_TIME: dt,
-        PID: pid_val,
-        TID: tid_val,
-        LOG_LEVEL: level,
-        TAG: tag,
-        PROCESS_NAME: tag,
-        MESSAGE: msg,
-    }
+def _skip_spaces(s, pos):
+    """Advance pos past all space characters in s."""
+    n = len(s)
+    while pos < n and s[pos] == ' ':
+        pos += 1
+    return pos
 
+
+def _read_digits(s, pos):
+    """Return (value_str, end_pos) for a run of digits starting at pos.
+    Returns (None, pos) when no digits are found.
+    """
+    n = len(s)
+    start = pos
+    while pos < n and s[pos].isdigit():
+        pos += 1
+    return (s[start:pos], pos) if pos > start else (None, start)
 
 def _parse_compact_fast(line):
     """Manual parser for bracketed compact format."""
@@ -189,6 +133,31 @@ def _parse_compact_fast(line):
     }
 
 
+def _parse_logcat_regex(line):
+    """Regex-based parser for Android logcat threadtime format.
+
+    Equivalent to _parse_logcat_fast but uses the pre-compiled logcat_pattern.
+    Useful for correctness comparison / unit-testing against the fast parser.
+
+    Supports both date prefixes:
+      MM-DD HH:MM:SS.mmm  PID  TID L TAG: message
+      YYYY-MM-DD HH:MM:SS.mmm  PID  TID L TAG: message
+    """
+    m = logcat_pattern.match(line)
+    if m is None:
+        return None
+    tag = m.group('tag').strip()
+    return {
+        DATE_TIME:    m.group('datetime'),
+        PID:          m.group('pid'),
+        TID:          m.group('tid'),
+        LOG_LEVEL:    m.group('log_level'),
+        TAG:          tag,
+        PROCESS_NAME: tag,
+        MESSAGE:      m.group('message'),
+    }
+
+
 # Format enum for detect_format result
 _FMT_ISO     = 1
 _FMT_LOGCAT  = 2
@@ -197,7 +166,7 @@ _FMT_UNKNOWN = 0
 
 _FAST_PARSERS = {
     _FMT_ISO: _parse_iso_fast,
-    _FMT_LOGCAT: _parse_logcat_fast,
+    _FMT_LOGCAT: _parse_logcat_regex,
     _FMT_COMPACT: _parse_compact_fast,
 }
 
