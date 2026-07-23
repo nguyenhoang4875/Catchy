@@ -62,6 +62,7 @@ class Controller(QObject):
         self._connRDeviceThread     = QThread()
         self._pingHostThread        = QThread()
         self._logcatThread          = QThread()
+        self._filterThread          = QThread()
         self._logcatProcess         = None
         self._scrcpyProcess         = None
         self._showLoadingScreen     = False
@@ -900,16 +901,30 @@ class Controller(QObject):
     @Slot(str, str, str)
     @Slot(str, str, QColor)
     def addFilter(self, tag, tid, color):
-        self.filterLog.addFilter(tag, tid, color)
-        self.refreshColorFilters()
-        pass
+        if self._filterThread.isRunning():
+            self._filterThread.quit()
+            self._filterThread.wait()
+        self._filterWorker = Worker(self.filterLog.addFilter, tag, tid, color)
+        self._filterWorker.moveToThread(self._filterThread)
+        self._filterWorker.taskCompleted.connect(self._onFilterOperationDone)
+        self._filterThread.started.connect(self._filterWorker.run)
+        self._filterThread.start()
 
     @Slot(int, str, str, bool, str)
     @Slot(int, str, str, bool, QColor)
     def updateFilter(self, id, tag, tid, enabled, color):
-        self.filterLog.updateFilter(id, tag, tid, enabled, color)
+        if self._filterThread.isRunning():
+            self._filterThread.quit()
+            self._filterThread.wait()
+        self._filterWorker = Worker(self.filterLog.updateFilter, id, tag, tid, enabled, color)
+        self._filterWorker.moveToThread(self._filterThread)
+        self._filterWorker.taskCompleted.connect(self._onFilterOperationDone)
+        self._filterThread.started.connect(self._filterWorker.run)
+        self._filterThread.start()
+
+    def _onFilterOperationDone(self, result):
+        self._filterThread.quit()
         self.refreshColorFilters()
-        pass
 
     @Slot(int)
     def removeFilter(self, id):
