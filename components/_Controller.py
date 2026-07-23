@@ -561,7 +561,10 @@ class Controller(QObject):
         idx = line - 1 - self._trimmedOffset
         if 0 <= idx < len(self.logviewModel._log_data):
             logline = self.logviewModel._log_data[idx]
-            self.detailsText = self.logviewModel.format_log_line(logline)
+            self.detailsText = (
+                f"Line {line}:\t"
+                f"{logline.get('message', '')}"
+            )
 
     def getLogViewModel(self):
         return self.logviewModel

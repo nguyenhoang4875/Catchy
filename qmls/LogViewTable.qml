@@ -81,7 +81,6 @@ Item {
     onHighlightLineNumChanged: {
         if (root.tableType === LogViewTable.TableType.ViewTable) {
             let rowIdx = filterProxyModel.rowLineNum(highlightLineNum)
-            logview.positionViewAtRow(rowIdx, TableView.AlignCenter)
             // let item = logview.itemAtIndex(logview.index(rowIdx, 0))
             // item.highlight()
             delayTimer.restart()
@@ -399,8 +398,8 @@ Item {
             TapHandler {
                 acceptedButtons: Qt.LeftButton | Qt.RightButton
                 onTapped: (eventPoint, button) => {
+                    var cellIndex = filterProxyModel.index(row, column)
                     if (button === Qt.LeftButton) {
-                        var cellIndex = filterProxyModel.index(row, column)
                         
                         if (eventPoint.modifiers & Qt.ControlModifier) {
                             // Ctrl+Click: Toggle cell selection for multi-column selection
@@ -427,6 +426,7 @@ Item {
                         controller.showLogDetails(lineNumber)
                         controller.highlightLineNum = lineNumber
                     } else if (button === Qt.RightButton) {
+                        controller.highlightLineNum = lineNumber
                         let pos = mapToItem(logView, eventPoint.position.x, eventPoint.position.y)
                         optionMenu.openMenu(bookmarked, lineNumber, pos.x, pos.y)
                     }
