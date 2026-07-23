@@ -88,6 +88,10 @@ class Controller(QObject):
         self._isSaving          = False
         self._saveProgressVal   = 0.0
 
+        self._logcatFilePath       = ""
+        self._logcatStreaming     = False
+        self._logcatStreamThread  = QThread()
+
         self._logcatFlushTimer = QTimer(self)
         self._logcatFlushTimer.setInterval(100)
         self._logcatFlushTimer.timeout.connect(self._flushLogcatBuffer)
@@ -135,6 +139,7 @@ class Controller(QObject):
         self._stop_thread(self._loadLogFileThread)
         self._stop_thread(self._streamLogFileThread)
         self._stop_thread(self._logcatThread)
+        self._stop_thread(self._logcatStreamThread)
         
         if (self.remoteDeviceManager.connectedDevice):
             self.requestDisconnectFromDevice()
@@ -429,6 +434,11 @@ class Controller(QObject):
             self._configs.saveConfig("logSource", SOURCE_FILE)
             self.logSourceChanged.emit()
             return
+
+        current_time = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        self._logcatFilePath = os.path.join(ROOT_FOLDER, f"logcat_{current_time}.log")
+        self._logcatStreaming = True
+
         self.logviewModel.updateData([])
         self._nextLineNum = 1
         self._trimmedOffset = 0
@@ -436,11 +446,20 @@ class Controller(QObject):
         self.logViewReady = True
         self.helper.autoScrollDown = True
         self._logcatFlushTimer.start()
+
+        # Writer thread: adb logcat → file
         self._logcatWorker = Worker(self._runLogcat)
         self._logcatWorker.moveToThread(self._logcatThread)
         self._logcatWorker.taskCompleted.connect(self._onLogcatStopped)
         self._logcatThread.started.connect(self._logcatWorker.run)
         self._logcatThread.start()
+
+        # Reader thread: file → logcat buffer
+        self._logcatStreamWorker = Worker(self._streamLogcatFile)
+        self._logcatStreamWorker.moveToThread(self._logcatStreamThread)
+        self._logcatStreamThread.started.connect(self._logcatStreamWorker.run)
+        self._logcatStreamThread.start()
+
         self.toast.show(TOAST.INFO, "Reading Android logcat...")
 
     @Slot()
@@ -451,6 +470,7 @@ class Controller(QObject):
 
     def _stopLogcatProcess(self):
         self._logcatFlushTimer.stop()
+        self._logcatStreaming = False  # stop file reader
         if self._logcatProcess and self._logcatProcess.poll() is None:
             self._logcatProcess.terminate()
             try:
@@ -462,8 +482,12 @@ class Controller(QObject):
         if self._logcatThread.isRunning():
             self._logcatThread.quit()
             self._logcatThread.wait()
+        if self._logcatStreamThread.isRunning():
+            self._logcatStreamThread.quit()
+            self._logcatStreamThread.wait()
 
     def _runLogcat(self):
+        """Write adb logcat output to a temp file. Processing is done by _streamLogcatFile."""
         try:
             self._logcatProcess = subprocess.Popen(
                 ["adb", "logcat", "-v", "threadtime"],
@@ -474,15 +498,32 @@ class Controller(QObject):
                 errors="replace",
                 creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
             )
-            colors = self.filterLog.colors()
-            for line in self._logcatProcess.stdout:
-                if self._logcatProcess.poll() is not None:
-                    break
-                result = self.logviewModel.processLineDataLogcat(line.rstrip("\n"), colors)
-                if result[0]:
-                    self._logcatBuffer.append(result[1])
+            with open(self._logcatFilePath, 'w', encoding='utf-8', buffering=1) as log_file:
+                for line in self._logcatProcess.stdout:
+                    if self._logcatProcess.poll() is not None:
+                        break
+                    log_file.write(line)
         except Exception as e:
             print(f"logcat error: {e}")
+
+    def _streamLogcatFile(self):
+        """Tail the logcat file and buffer parsed entries for display."""
+        timeout = 5.0
+        elapsed = 0.0
+        while not os.path.exists(self._logcatFilePath) and elapsed < timeout:
+            time.sleep(0.1)
+            elapsed += 0.1
+
+        if not os.path.exists(self._logcatFilePath):
+            print(f"logcat file not found: {self._logcatFilePath}")
+            return
+
+        self.streamFile(
+            self._logcatFilePath,
+            process_fn=lambda line, colors: self.logviewModel.processLineDataLogcat(line.rstrip("\n"), colors),
+            stop_flag_fn=lambda: self._logcatStreaming,
+            target_buffer=self._logcatBuffer,
+        )
 
     def _flushLogcatBuffer(self):
         if not self._logcatBuffer:
@@ -715,13 +756,19 @@ class Controller(QObject):
         self._streamLogFileThread.started.connect(self.worker.run)
         self._streamLogFileThread.start()
 
-    def streamFile(self, file_path):
+    def streamFile(self, file_path, process_fn=None, stop_flag_fn=None, target_buffer=None):
         print("streamFile: ", file_path)
-        try:
+        if process_fn is None:
             self.remoteDeviceManager.streaming = True
+            process_fn = lambda line, colors: self.logviewModel.processLineData(line, colors)
+        if stop_flag_fn is None:
+            stop_flag_fn = lambda: self.remoteDeviceManager.streaming
+        if target_buffer is None:
+            target_buffer = self._streamBuffer
+        try:
             with open(file_path, 'r', encoding='utf-8') as file:
                 file.seek(0, os.SEEK_END)
-                while self.remoteDeviceManager.streaming:
+                while stop_flag_fn():
                     lines = []
                     while True:
                         new_line = file.readline()
@@ -732,9 +779,9 @@ class Controller(QObject):
                     if lines:
                         colors = self.filterLog.colors()
                         for line in lines:
-                            result = self.logviewModel.processLineData(line, colors)
+                            result = process_fn(line, colors)
                             if result[0]:
-                                self._streamBuffer.append(result[1])
+                                target_buffer.append(result[1])
                     else:
                         time.sleep(0.1)
         except Exception as e:
