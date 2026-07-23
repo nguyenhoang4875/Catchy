@@ -64,6 +64,19 @@ The `Controller` is the main facade between QML and all backend services. It:
 
 **Key signals:** `showLoadingScreenChanged`, `logViewReadyChanged`, `loadLogFileCompleted`, `detailsTextChanged`, `highlightLineNumChanged`, `showNotification`, `themeChanged`, `showLessColumnsChanged`.
 
+### Local logcat stream startup flow
+
+1. The user clicks `streamingControlBtn` in `qmls/main.qml`.
+2. QML calls `controller.setLogSource("logcat")`.
+3. The `logSource` setter stops the previous source, stores the new source, emits `logSourceChanged`, and calls `startLogcat()`.
+4. `startLogcat()` verifies that an ADB device is available and that `adb` is on `PATH`.
+5. The log model and live-stream state are reset, then the logcat flush timer is started.
+6. One worker runs `adb logcat -v threadtime` and writes to a temporary log file.
+7. A second worker tails that file, parses new lines, and places entries in the stream buffer.
+8. The flush timer assigns line numbers and batches buffered entries into the model. The table auto-scrolls while streaming.
+
+While `logSource` is `"logcat"`, clicking a table row can still select and highlight it, but it does not update the detail message because live rows may be trimmed as the stream advances.
+
 ---
 
 ### `_LogViewModel.py` — Data Model
