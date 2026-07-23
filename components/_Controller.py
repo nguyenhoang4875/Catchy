@@ -63,6 +63,7 @@ class Controller(QObject):
         self._pingHostThread        = QThread()
         self._logcatThread          = QThread()
         self._filterThread          = QThread()
+        self._searchThread          = QThread()
         self._logcatProcess         = None
         self._scrcpyProcess         = None
         self._showLoadingScreen     = False
@@ -955,7 +956,21 @@ class Controller(QObject):
     @Slot(str)
     def executeSearch(self, pattern):
         print("executeSearch: ", pattern)
+        if self._searchThread.isRunning():
+            self._searchThread.quit()
+            self._searchThread.wait()
+        self._searchWorker = Worker(self._doSearch, pattern)
+        self._searchWorker.moveToThread(self._searchThread)
+        self._searchWorker.taskCompleted.connect(self._onSearchDone)
+        self._searchThread.started.connect(self._searchWorker.run)
+        self._searchThread.start()
+
+    def _doSearch(self, pattern):
         self._searchLog.applySearchQuery(pattern)
+        return pattern
+
+    def _onSearchDone(self, pattern):
+        self._searchThread.quit()
         self._searchLog.showSearchResults = bool((pattern or "").strip())
         self._persistSearchState()
 
