@@ -179,6 +179,9 @@ Item {
         interval: 300
         onTriggered: {
             let rowIdx = filterProxyModel.rowLineNum(highlightLineNum)
+            if (root.tableType === LogViewTable.TableType.ViewTable && rowIdx >= 0) {
+                logview.positionViewAtRow(rowIdx, TableView.AlignVCenter)
+            }
             for (var i = 0; i < logHeaderModel.count; i++) {
                 let item = logview.itemAtIndex(logview.index(rowIdx, i))
                 if (item) {
