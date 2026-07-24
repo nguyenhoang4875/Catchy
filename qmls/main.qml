@@ -523,6 +523,11 @@ ApplicationWindow {
                         Shortcut {
                             sequences: [ StandardKey.Copy ]
                             onActivated: {
+                                if (detailTextArea.activeFocus) {
+                                    detailTextArea.copy()
+                                    return
+                                }
+
                                 let copyString = ""
                                 let indexes
                                 if (logviewTable.logview.selectionModel.hasSelection) {
