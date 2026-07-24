@@ -427,14 +427,19 @@ class Controller(QObject):
     @Slot()
     def startLogcat(self):
         print("startLogcat")
-        self.refreshAdbDeviceAvailability()
-        if self._logcatThread.isRunning():
+        # Do not reinitialize an active stream when device availability changes.
+        if self._logcatThread.isRunning() or self._logcatStreamThread.isRunning():
             return
+
         if not shutil.which("adb"):
             self.showNotification.emit("adb not found in PATH. Please install Android SDK Platform Tools.")
             self._logSource = SOURCE_FILE
             self._configs.saveConfig("logSource", SOURCE_FILE)
             self.logSourceChanged.emit()
+            return
+
+        self.refreshAdbDeviceAvailability()
+        if not self._hasAdbDevices:
             return
 
         current_time = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
