@@ -16,6 +16,15 @@ Popup {
     property int type: FilterDetailPanel.Type.New
     property var filterProfile
 
+    function applyFilter() {
+        if (root.type === FilterDetailPanel.Type.New) {
+            controller.addFilter(tagString.text, pidString.text, filterColor.icon.color)
+        } else {
+            controller.updateFilter(root.filterProfile.id, tagString.text, pidString.text, root.filterProfile.enabled, filterColor.icon.color)
+        }
+        root.close()
+    }
+
     background: Rectangle {
         id: dialogBg
         anchors.fill: parent
@@ -106,6 +115,8 @@ Popup {
 
         placeholderText: "Tag regex (e.g. tag1|tag2)"
 
+        onAccepted: root.applyFilter()
+
         background: Rectangle {
             color: ({
                 [Styler.ThemeMode.DARK]: "#434342",
@@ -118,7 +129,7 @@ Popup {
     }
 
     TextField {
-        id: tidString
+        id: pidString
         width: parent.width - 10
         height: 32
         anchors.top: tagString.bottom
@@ -138,11 +149,13 @@ Popup {
             if (root.type === FilterDetailPanel.Type.New) {
                 return ""
             } else {
-                return filterProfile.tid
+                return filterProfile.pid
             }
         }
 
-        placeholderText: "TID regex (e.g. 781|795)"
+        placeholderText: "PID regex (e.g. 781|795)"
+
+        onAccepted: root.applyFilter()
 
         background: Rectangle {
             color: ({
@@ -239,12 +252,7 @@ Popup {
         }
 
         onClicked: {
-            if (root.type === FilterDetailPanel.Type.New) {
-                controller.addFilter(tagString.text, tidString.text, filterColor.icon.color)
-            } else {
-                controller.updateFilter(root.filterProfile.id, tagString.text, tidString.text, root.filterProfile.enabled, filterColor.icon.color)
-            }
-            root.close()
+            root.applyFilter()
         }
     }
 }

@@ -84,10 +84,10 @@ class FilterLog(QObject):
 
     @Slot(str, str, str)
     @Slot(str, str, QColor)
-    def addFilter(self, tag, tid, color):
+    def addFilter(self, tag, pid, color):
         id = self._maxID + 1
         colorStr = self._normalizeColor(color)
-        filterConfig = { "id": id, "name": tag, "tag": tag, "pid": "", "tid": tid, "enabled": True, "color": colorStr }
+        filterConfig = { "id": id, "name": tag, "tag": tag, "pid": pid, "tid": "", "enabled": True, "color": colorStr }
         self._loadedFilters[id] = filterConfig
         self.saveFilterToJson()
         self.refreshFilterProps()
@@ -95,9 +95,9 @@ class FilterLog(QObject):
 
     @Slot(int, str, str, bool, str)
     @Slot(int, str, str, bool, QColor)
-    def updateFilter(self, id, tag, tid, enabled, color):
+    def updateFilter(self, id, tag, pid, enabled, color):
         colorStr = self._normalizeColor(color)
-        filterConfig = { "id": id, "name": tag, "tag": tag, "pid": "", "tid": tid, "enabled": enabled, "color": colorStr }
+        filterConfig = { "id": id, "name": tag, "tag": tag, "pid": pid, "tid": "", "enabled": enabled, "color": colorStr }
         self._loadedFilters[id] = filterConfig
         self.saveFilterToJson()
         self.refreshFilterProps()

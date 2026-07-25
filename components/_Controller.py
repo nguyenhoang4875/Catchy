@@ -835,11 +835,11 @@ class Controller(QObject):
 
     @Slot(str, str, str)
     @Slot(str, str, QColor)
-    def addFilter(self, tag, tid, color):
+    def addFilter(self, tag, pid, color):
         if self._filterThread.isRunning():
             self._filterThread.quit()
             self._filterThread.wait()
-        self._filterWorker = Worker(self.filterLog.addFilter, tag, tid, color)
+        self._filterWorker = Worker(self.filterLog.addFilter, tag, pid, color)
         self._filterWorker.moveToThread(self._filterThread)
         self._filterWorker.taskCompleted.connect(self._onFilterOperationDone)
         self._filterThread.started.connect(self._filterWorker.run)
@@ -847,11 +847,11 @@ class Controller(QObject):
 
     @Slot(int, str, str, bool, str)
     @Slot(int, str, str, bool, QColor)
-    def updateFilter(self, id, tag, tid, enabled, color):
+    def updateFilter(self, id, tag, pid, enabled, color):
         if self._filterThread.isRunning():
             self._filterThread.quit()
             self._filterThread.wait()
-        self._filterWorker = Worker(self.filterLog.updateFilter, id, tag, tid, enabled, color)
+        self._filterWorker = Worker(self.filterLog.updateFilter, id, tag, pid, enabled, color)
         self._filterWorker.moveToThread(self._filterThread)
         self._filterWorker.taskCompleted.connect(self._onFilterOperationDone)
         self._filterThread.started.connect(self._filterWorker.run)
