@@ -4,7 +4,6 @@ from pathlib import Path
 # Log source constants
 SOURCE_FILE     = "file"
 SOURCE_LOGCAT   = "logcat"
-SOURCE_SSH      = "ssh"
 
 # Performance constants
 BATCH_SIZE          = 50_000      # Records per batch during file loading

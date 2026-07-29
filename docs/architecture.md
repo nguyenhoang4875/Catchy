@@ -18,11 +18,11 @@ QtLogViewer is a desktop log viewer application built with **Python + PySide6 (Q
 ┌────────────────────────▼────────────────────────────────┐
 │                    Controller (Facade)                   │
 │              components/_Controller.py                   │
-└──┬──────────┬──────────┬──────────┬──────────┬──────────┘
-   │          │          │          │          │
-   ▼          ▼          ▼          ▼          ▼
-LogModel  FilterLog  SearchLog  Remote     Bookmark /
-+ Proxy             + Configs  DeviceManager  Toast / Helper
+└──┬──────────┬──────────┬──────────┬──────────────────────┘
+   │          │          │          │
+   ▼          ▼          ▼          ▼
+LogModel  FilterLog  SearchLog  Bookmark /
++ Proxy             + Configs   Toast / Helper
 ```
 
 ---
@@ -41,7 +41,6 @@ LogModel  FilterLog  SearchLog  Remote     Bookmark /
 | `logModel`            | `LogModel` (via Controller)|
 | `filterLog`           | `FilterLog`                |
 | `searchLog`           | `SearchLog`                |
-| `remoteDeviceManager` | `RemoteDeviceManager`      |
 | `toastMgr`            | `Toast`                    |
 | `helper`              | `Helper`                   |
 | `bookmark`            | `Bookmark`                 |
@@ -58,7 +57,7 @@ LogModel  FilterLog  SearchLog  Remote     Bookmark /
 The `Controller` is the main facade between QML and all backend services. It:
 
 - Owns and wires together all sub-components.
-- Manages `QThread` workers for async file loading and SSH streaming.
+- Manages `QThread` workers for async file loading and logcat streaming.
 - Exposes Qt `Property` and `Slot` methods called directly from QML.
 - Handles app lifecycle (config loading on start, cleanup on exit via `atexit`).
 
@@ -124,24 +123,13 @@ While `logSource` is `"logcat"`, clicking a table row can still select and highl
 
 ---
 
-### `_RemoteDeviceManager.py` — SSH Device Manager
-
-Manages remote device connections for live log streaming.
-
-- Holds a list of configured devices, the currently connected device, and connection status.
-- State machine: `IDLE → INPROGRESS → SUCCESS / FAILED`.
-- `streaming` flag controls whether a live log stream is active.
-- SSH connectivity is handled via `asyncssh` (async) driven from `Controller` in a dedicated `QThread`.
-
----
-
 ### `_Worker.py` — Thread Worker
 
 Generic async task runner used with `QThread`.
 
 - Accepts any callable + args/kwargs.
 - Emits `taskCompleted(result)` when done.
-- Used by `Controller` to offload file I/O and SSH operations off the main thread.
+- Used by `Controller` to offload file I/O operations off the main thread.
 
 ---
 
@@ -149,7 +137,7 @@ Generic async task runner used with `QThread`.
 
 Loads and saves application configuration from `C:/QtLogViewer/savedConfig.json`.
 
-- On startup, restores: last filter path, remote device list, theme, column visibility.
+- On startup, restores: last filter path, theme, column visibility.
 - `saveConfig(key, value)` persists individual keys to disk.
 
 ---
@@ -193,10 +181,9 @@ Singleton `Toast` (enforced by a `@singleton` decorator + `@QmlElement`).
 |-----------------------------|------------------------------------------------------------|
 | `main.qml`                  | Root `ApplicationWindow`; menu bar, layout composition     |
 | `LogViewTable.qml`          | Main log `TableView` with filter proxy and row highlights  |
-| `LeftToolPanel.qml`         | Side panel: filter list, remote device controls            |
+| `LeftToolPanel.qml`         | Side panel: filter list                                    |
 | `FilterDetailPanel.qml`     | Add/edit filter form                                       |
 | `BookmarkPanel.qml`         | Bookmarks list panel                                       |
-| `RemoteDeviceDetailPanel.qml`| SSH device config and connection UI                       |
 | `LoadingScreen.qml`         | Full-screen loading overlay                                |
 | `Toast.qml`                 | Toast notification overlay                                 |
 | `Notification.qml`          | In-app notification banner                                 |
@@ -228,15 +215,14 @@ QML (user picks file)
           → QML TableView refreshes
 ```
 
-## Data Flow: Live Log Streaming (Remote Device)
+## Data Flow: Live Log Streaming (ADB Logcat)
 
 ```
-QML → controller.requestConnectToDevice(device)
-  → asyncssh connects in _connRDeviceThread
-  → on success: remoteDeviceManager.connectedDevice = device
-  → controller.requestStartStream()
-      → SSH exec stream script in _streamLogFileThread
-      → Worker reads chunks → appends to LogModel
+QML → controller.setLogSource("logcat")
+  → startLogcat()
+      → adb logcat -v threadtime writes to temp file
+      → Worker tails file → parses lines → buffers entries
+      → flush timer inserts into LogModel
       → helper.autoScrollDown = true → QML scrolls to bottom
 ```
 
@@ -255,7 +241,7 @@ FilterLog.filteredRegex changes (Signal)
 
 | File                              | Purpose                                    |
 |-----------------------------------|--------------------------------------------|
-| `C:/QtLogViewer/savedConfig.json` | Runtime config: theme, devices, filter path|
+| `C:/QtLogViewer/savedConfig.json` | Runtime config: theme, filter path       |
 | `configurations/filters.json`     | Default/bundled filter definitions         |
 | `configurations/homeFilter.json`  | Home filter preset                         |
 | `configurations/savedConfig.json` | Dev-time config fallback                   |
@@ -275,7 +261,6 @@ The application is packaged with **PyInstaller** using `main.spec`. The `build/m
 | Language   | Python 3.x                          |
 | UI Toolkit | PySide6 (Qt 6) + QML                |
 | Qt Style   | Fusion / Universal (theme-aware)    |
-| SSH        | asyncssh                            |
 | Clipboard  | pyperclip + Qt QClipboard           |
 | Packaging  | PyInstaller                         |
 | Fonts      | Mukta Vaani, Concert One, Moirai One|

@@ -8,7 +8,6 @@ From code import analysis, this project needs these third-party Python packages:
 
 - PySide6
 - pyperclip
-- asyncssh
 
 Standard library modules (json, os, pathlib, asyncio, subprocess, etc.) are already included with Python.
 
@@ -22,7 +21,7 @@ Run these commands in the project folder:
 
 ```bash
 python -m pip install --upgrade pip
-python -m pip install PySide6 pyperclip asyncssh
+python -m pip install PySide6 pyperclip
 ```
 
 ## Run the app
