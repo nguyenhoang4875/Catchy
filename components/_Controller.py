@@ -101,7 +101,8 @@ class Controller(QObject):
         self._streamFlushTimer = QTimer(self)
         self._streamFlushTimer.setInterval(100)
         self._streamFlushTimer.timeout.connect(self._flushStreamBuffer)
-        
+
+        self.helper.autoScrollDownChanged.connect(self._onAutoScrollDownChanged)
         
         self._streamingFilePath = ""
         self._theme = self._configs.getConfigs().get("theme", "light")
@@ -492,6 +493,18 @@ class Controller(QObject):
         if self._logcatStreamThread.isRunning():
             self._logcatStreamThread.quit()
             self._logcatStreamThread.wait()
+
+    def _onAutoScrollDownChanged(self):
+        if self.helper.autoScrollDown:
+            if self._logcatStreaming:
+                self._flushLogcatBuffer()
+                self._logcatFlushTimer.start()
+            if self.remoteDeviceManager.streaming:
+                self._flushStreamBuffer()
+                self._streamFlushTimer.start()
+        else:
+            self._logcatFlushTimer.stop()
+            self._streamFlushTimer.stop()
 
     def _runLogcat(self):
         """Write adb logcat output to a temp file. Processing is done by _streamLogcatFile."""
