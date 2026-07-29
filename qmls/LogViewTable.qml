@@ -39,8 +39,26 @@ Item {
     property alias logview: logView
     property int lastColSelected: -1
     property int firstColSelected: logHeaderModel.count
-    property var highlightLineNum: controller.highlightLineNum
+    property int highlightLineNum: -1
     property var selectedRows: ({})
+
+    function scrollToLine(lineNum) {
+        scrollTimer.lineToScroll = lineNum
+        scrollTimer.restart()
+    }
+
+    function highlightLine(lineNum) {
+        root.highlightLineNum = lineNum
+        highlightTimer.lineToHighlight = lineNum
+        highlightTimer.restart()
+    }
+
+    function scrollAndHighlight(lineNum) {
+        root.highlightLineNum = lineNum
+        scrollToLine(lineNum)
+        highlightTimer.lineToHighlight = lineNum
+        highlightTimer.restart()
+    }
 
     function applyColumnLayout() {
         if (controller.showLessColumns) {
@@ -78,12 +96,12 @@ Item {
         logHeaderModel.setProperty(6, "size", 0)
         logHeaderModel.setProperty(6, "resizeable", true)
     }
-    onHighlightLineNumChanged: {
-        if (root.tableType === LogViewTable.TableType.ViewTable) {
-            let rowIdx = filterProxyModel.rowLineNum(highlightLineNum)
-            // let item = logview.itemAtIndex(logview.index(rowIdx, 0))
-            // item.highlight()
-            delayTimer.restart()
+    Connections {
+        target: controller
+        function onHighlightLineNumChanged() {
+            if (root.tableType === LogViewTable.TableType.ViewTable) {
+                scrollAndHighlight(controller.highlightLineNum)
+            }
         }
     }
 
@@ -175,13 +193,23 @@ Item {
     }
 
     Timer {
-        id: delayTimer
+        id: scrollTimer
         interval: 300
+        property int lineToScroll: -1
         onTriggered: {
-            let rowIdx = filterProxyModel.rowLineNum(highlightLineNum)
+            let rowIdx = filterProxyModel.rowLineNum(lineToScroll)
             if (root.tableType === LogViewTable.TableType.ViewTable && rowIdx >= 0) {
                 logview.positionViewAtRow(rowIdx, TableView.AlignVCenter)
             }
+        }
+    }
+
+    Timer {
+        id: highlightTimer
+        interval: 300
+        property int lineToHighlight: -1
+        onTriggered: {
+            let rowIdx = filterProxyModel.rowLineNum(lineToHighlight)
             for (var i = 0; i < logHeaderModel.count; i++) {
                 let item = logview.itemAtIndex(logview.index(rowIdx, i))
                 if (item) {
@@ -427,9 +455,17 @@ Item {
                         
                         // Show log details and highlight line
                         controller.showLogDetails(lineNumber)
-                        controller.highlightLineNum = lineNumber
+                        if (root.tableType === LogViewTable.TableType.ViewTable) {
+                            highlightLine(lineNumber)
+                        } else {
+                            controller.highlightLineNum = lineNumber
+                        }
                     } else if (button === Qt.RightButton) {
-                        controller.highlightLineNum = lineNumber
+                        if (root.tableType === LogViewTable.TableType.ViewTable) {
+                            highlightLine(lineNumber)
+                        } else {
+                            controller.highlightLineNum = lineNumber
+                        }
                         let pos = mapToItem(logView, eventPoint.position.x, eventPoint.position.y)
                         optionMenu.openMenu(bookmarked, lineNumber, pos.x, pos.y)
                     }
@@ -452,6 +488,7 @@ Item {
                 color: (root.applyFilterColors && filterColor) ? filterColor : (controller.showLogColors && levelColor ? levelColor : root.logTextColor)
                 font.family: muktaVaani.font.family
                 font.pointSize: 10
+                font.bold: highlightAnimation.bolded
                 // wrapMode: Text.WordWrap
                 // font.bold: true
                 clip: true
