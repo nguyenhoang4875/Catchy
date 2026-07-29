@@ -20,7 +20,7 @@ Popup {
         if (root.type === FilterDetailPanel.Type.New) {
             controller.addFilter(tagString.text, pidString.text, filterColor.icon.color)
         } else {
-            controller.updateFilter(root.filterProfile.id, tagString.text, pidString.text, root.filterProfile.enabled, filterColor.icon.color)
+            controller.updateFilter(root.filterProfile.id, tagString.text, pidString.text, true, filterColor.icon.color)
         }
         root.close()
     }
