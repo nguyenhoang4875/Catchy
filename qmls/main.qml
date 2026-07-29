@@ -464,6 +464,26 @@ ApplicationWindow {
                 Styler.showLessColumns = !Styler.showLessColumns
             }
         }
+        
+        Shortcut {
+            sequence: "Ctrl+T"
+            onActivated: {
+                let filters = filterLog.displayedFilters
+                if (filters.length > 0) {
+                    filterDetailPanel.openPanel(FilterDetailPanel.Type.Edit, filters.length - 1)
+                } else {
+                    filterDetailPanel.openPanel(FilterDetailPanel.Type.New)
+
+                }
+            }
+        }
+
+        Shortcut {
+            sequence: "Ctrl+Shift+T"
+            onActivated: {
+                filterDetailPanel.openPanel(FilterDetailPanel.Type.New)
+            }
+        }
 
         SplitView {
             id: verSplit
@@ -711,7 +731,7 @@ ApplicationWindow {
             width: parent.width * 0.3
             height: parent.height * 0.3
             dim: true
-            closePolicy: Popup.CloseOnPressOutside
+            closePolicy: Popup.CloseOnPressOutside | Popup.CloseOnEscape
 
             function openPanel(_type, index) {
                 console.log("openPanel: " + _type + " " + index)

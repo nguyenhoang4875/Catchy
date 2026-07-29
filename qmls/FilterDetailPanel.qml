@@ -117,6 +117,9 @@ Popup {
 
         onAccepted: root.applyFilter()
 
+        Component.onCompleted: forceActiveFocus()
+        onVisibleChanged: if (visible) forceActiveFocus()
+
         background: Rectangle {
             color: ({
                 [Styler.ThemeMode.DARK]: "#434342",
