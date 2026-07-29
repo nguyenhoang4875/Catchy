@@ -41,6 +41,19 @@ Item {
     property int firstColSelected: logHeaderModel.count
     property int highlightLineNum: -1
     property var selectedRows: ({})
+    property real maxMessageTextWidth: 0
+    property real headerContentWidth: {
+        var fixedTotal = 0
+        for (var i = 0; i < logHeaderModel.count; i++) {
+            var entry = logHeaderModel.get(i)
+            if (entry.size > 0 && entry.resizeable) {
+                var item = header.itemAt(i)
+                fixedTotal += item ? item.width : entry.size * root.width
+            }
+        }
+        var msgWidth = Math.max(root.width - fixedTotal, maxMessageTextWidth + 16)
+        return fixedTotal + msgWidth
+    }
 
     function scrollToLine(lineNum) {
         scrollTimer.lineToScroll = lineNum
@@ -240,14 +253,21 @@ Item {
 
     Component.onCompleted: root.applyColumnLayout()
 
-    SplitView {
-        id: header
+    Item {
+        id: headerContainer
         anchors.top: root.top
         anchors.left: root.left
         anchors.right: root.right
         height: 30
-        orientation: Qt.Horizontal
-        spacing: 0
+        clip: true
+
+        SplitView {
+            id: header
+            x: -logView.contentX
+            width: root.headerContentWidth
+            height: parent.height
+            orientation: Qt.Horizontal
+            spacing: 0
 
         handle: Rectangle {
             implicitWidth: 2
@@ -284,19 +304,25 @@ Item {
                 }
             }
         }
+        }
     }
 
     SortFilterProxyModel {
         id: filterProxyModel
     }
 
+    Connections {
+        target: filterProxyModel
+        function onModelReset() { root.maxMessageTextWidth = 0 }
+    }
+
     TableView {
         id: logView
         visible: root.showTable
-        anchors.top: header.bottom
+        anchors.top: headerContainer.bottom
         anchors.left: root.left
         anchors.right: root.right
-        height: root.height - header.height
+        height: root.height - headerContainer.height
         width: root.width
 
         columnSpacing: 0.5 
@@ -403,6 +429,10 @@ Item {
             wheelEnabled: true
         }
 
+        ScrollBar.horizontal: ScrollBar {
+            policy: ScrollBar.AsNeeded
+        }
+
         model: filterProxyModel
 
         delegate: Item {
@@ -489,14 +519,22 @@ Item {
                 font.family: muktaVaani.font.family
                 font.pointSize: 10
                 font.bold: highlightAnimation.bolded
-                // wrapMode: Text.WordWrap
-                // font.bold: true
                 clip: true
                 anchors.leftMargin: 4
                 anchors.rightMargin: 4
                 textFormat: (root.highlight && isLastColumn) ? Text.RichText : Text.PlainText
                 z: 10
-                // readOnly: true
+
+                onImplicitWidthChanged: {
+                    if (isLastColumn && implicitWidth > root.maxMessageTextWidth) {
+                        root.maxMessageTextWidth = implicitWidth
+                    }
+                }
+                Component.onCompleted: {
+                    if (isLastColumn && implicitWidth > root.maxMessageTextWidth) {
+                        root.maxMessageTextWidth = implicitWidth
+                    }
+                }
             }
 
             Rectangle {
