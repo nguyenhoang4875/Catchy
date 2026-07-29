@@ -43,7 +43,6 @@ if __name__ == "__main__":
 
     engine.rootContext().setContextProperty("searchLog", controller.getSearchLog())
     
-    engine.rootContext().setContextProperty("remoteDeviceManager", controller.getRemoteDeviceManager())
     
     engine.rootContext().setContextProperty("toastMgr", controller.getToast())
     

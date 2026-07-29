@@ -582,9 +582,6 @@ class Controller(QObject):
     def getSearchLog(self):
         return self._searchLog
     
-    def getRemoteDeviceManager(self):
-        return self.remoteDeviceManager
-    
     def getToast(self):
         return self.toast
     
@@ -1427,41 +1424,6 @@ class Controller(QObject):
         except Exception as e:
             print(f"adb logcat -c failed: {e}")
         self.toast.show(TOAST.INFO, "Log cleared")
-    
-    @Slot(dict, int)
-    def changeRemoteDeviceInfo(self, device, index):
-        device["SSHGateway_Port"] = int(device["SSHGateway_Port"])
-        device["port"] = int(device["port"])
-        print("changeRemoteDeviceInfo: ", device)
-        deviceList = self.remoteDeviceManager.deviceList
-        deviceList[index] = device
-        self.remoteDeviceManager.deviceList = deviceList
-        self._configs.saveConfig("remote", {"devices": self.remoteDeviceManager.deviceList})
-        pass
-    
-    @Slot(dict)
-    def addRemoteDevice(self, device):
-        device["SSHGateway_Port"] = int(device["SSHGateway_Port"])
-        device["port"] = int(device["port"])
-
-        if not device["remoteLogPath"].startswith('/'):
-            device["remoteLogPath"] = '/' + device["remoteLogPath"]
-        
-        print("addRemoteDevice: ", device)
-        deviceList = self.remoteDeviceManager.deviceList
-        deviceList.append(device)
-        self.remoteDeviceManager.deviceList = deviceList
-        self._configs.saveConfig("remote", {"devices": self.remoteDeviceManager.deviceList})
-        pass
-    
-    @Slot(int)
-    def removeRemoteDevice(self, id):
-        print("addRemoteDevice: ", id)
-        deviceList = self.remoteDeviceManager.deviceList
-        deviceList.remove(next((x for x in deviceList if x['id'] == id), None))
-        self.remoteDeviceManager.deviceList = deviceList
-        self._configs.saveConfig("remote", {"devices": self.remoteDeviceManager.deviceList})
-        pass
     
     @Slot(int, result=str)
     def getLogMessage(self, lineNum):

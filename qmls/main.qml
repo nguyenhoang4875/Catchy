@@ -721,36 +721,6 @@ ApplicationWindow {
             }
         }
 
-        RemoteDeviceDetailPanel {
-            id: remoteDeviceDetailPanel
-            anchors.centerIn: parent
-            width: 400
-            height: 580
-            closePolicy: Popup.CloseOnPressOutside
-            modal: true
-            dim: true
-            function openPanel(_type, index) {
-                console.log("openPanel: " + _type + " " + index)
-                remoteDeviceDetailPanel.selectedDeviceIndex = index
-                type = _type
-                if (_type === RemoteDeviceDetailPanel.Type.Edit) {
-                    remoteDeviceDetailPanel.remoteDeviceId      = remoteDeviceManager.deviceList[index].id
-                    remoteDeviceDetailPanel.isUseSSHGateway     = remoteDeviceManager.deviceList[index].isUseSSHGateway
-                    remoteDeviceDetailPanel.remoteDeviceName    = remoteDeviceManager.deviceList[index].name
-                    remoteDeviceDetailPanel.remoteDeviceHost    = remoteDeviceManager.deviceList[index].host
-                    remoteDeviceDetailPanel.remoteDevicePort    = remoteDeviceManager.deviceList[index].port
-                    remoteDeviceDetailPanel.remoteDeviceUser    = remoteDeviceManager.deviceList[index].username
-                    remoteDeviceDetailPanel.remoteLogPath       = remoteDeviceManager.deviceList[index].remoteLogPath
-                    remoteDeviceDetailPanel.sshGatewayHost      = remoteDeviceManager.deviceList[index].SSHGateway_IP
-                    remoteDeviceDetailPanel.sshGatewayPort      = remoteDeviceManager.deviceList[index].SSHGateway_Port
-                    remoteDeviceDetailPanel.sshGatewayUser      = remoteDeviceManager.deviceList[index].SSHGateway_User
-                } else {
-
-                }
-                remoteDeviceDetailPanel.open()
-            }
-        }
-
         Toast {
             id: toast
             width: parent.width / 3
