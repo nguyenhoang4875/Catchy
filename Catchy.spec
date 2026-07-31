@@ -8,7 +8,6 @@ datas = [
     (str(project_root / 'qmls'), 'qmls'),
     (str(project_root / 'styles'), 'styles'),
     (str(project_root / 'assets'), 'assets'),
-    (str(project_root / 'scripts'), 'scripts'),
 ]
 
 a = Analysis(

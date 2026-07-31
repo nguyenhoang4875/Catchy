@@ -11,7 +11,7 @@ from components._Bookmark import Bookmark
 from components._Toast import Toast, TOAST
 from components._Helper import *
 from components._SortFilterProxyModel import SortFilterProxyModel
-from components._Defines import SOURCE_FILE, SOURCE_LOGCAT, MAX_LOG_ROWS, WRITE_CHUNK_SIZE, IO_BUFFER_SIZE
+from components._Defines import SOURCE_FILE, SOURCE_LOGCAT, WRITE_CHUNK_SIZE, IO_BUFFER_SIZE, MAX_LOGCAT_FILE_SIZE
 import pyperclip
 import re
 import os
@@ -82,8 +82,10 @@ class Controller(QObject):
         self._saveProgressVal   = 0.0
 
         self._logcatFilePath       = ""
+        self._logcatFileQueue     = deque()
         self._logcatStreaming     = False
         self._logcatStreamThread  = QThread()
+        self._pendingClearLog     = False
 
         self._logcatFlushTimer = QTimer(self)
         self._logcatFlushTimer.setInterval(100)
@@ -424,6 +426,8 @@ class Controller(QObject):
 
         current_time = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         self._logcatFilePath = os.path.join(ROOT_FOLDER, f"logcat_{current_time}.log")
+        self._logcatFileQueue = deque()
+        self._logcatFileQueue.append(self._logcatFilePath)
         self._logcatStreaming = True
 
         self.logviewModel.updateData([])
@@ -482,7 +486,7 @@ class Controller(QObject):
             self._logcatFlushTimer.stop()
 
     def _runLogcat(self):
-        """Write adb logcat output to a temp file. Processing is done by _streamLogcatFile."""
+        """Write adb logcat output to files, rotating every MAX_LOGCAT_FILE_SIZE bytes."""
         try:
             self._logcatProcess = subprocess.Popen(
                 ["adb", "logcat", "-v", "threadtime"],
@@ -493,34 +497,80 @@ class Controller(QObject):
                 errors="replace",
                 creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
             )
-            with open(self._logcatFilePath, 'w', encoding='utf-8', buffering=1) as log_file:
+            current_size = 0
+            log_file = open(self._logcatFilePath, 'w', encoding='utf-8', buffering=1)
+            try:
                 for line in self._logcatProcess.stdout:
                     if self._logcatProcess.poll() is not None:
                         break
                     log_file.write(line)
+                    current_size += len(line.encode('utf-8'))
+                    if current_size >= MAX_LOGCAT_FILE_SIZE:
+                        log_file.close()
+                        new_time = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+                        self._logcatFilePath = os.path.join(ROOT_FOLDER, f"logcat_{new_time}.log")
+                        self._logcatFileQueue.append(self._logcatFilePath)
+                        log_file = open(self._logcatFilePath, 'w', encoding='utf-8', buffering=1)
+                        current_size = 0
+            finally:
+                log_file.close()
         except Exception as e:
             print(f"logcat error: {e}")
 
     def _streamLogcatFile(self):
-        """Tail the logcat file and buffer parsed entries for display."""
+        """Tail logcat files, following rotations from the writer thread."""
+        file_index = 0
+        file_path = self._logcatFileQueue[0]
+
         timeout = 5.0
         elapsed = 0.0
-        while not os.path.exists(self._logcatFilePath) and elapsed < timeout:
+        while not os.path.exists(file_path) and elapsed < timeout:
             time.sleep(0.1)
             elapsed += 0.1
 
-        if not os.path.exists(self._logcatFilePath):
-            print(f"logcat file not found: {self._logcatFilePath}")
+        if not os.path.exists(file_path):
+            print(f"logcat file not found: {file_path}")
             return
 
-        self.streamFile(
-            self._logcatFilePath,
-            process_fn=lambda line, colors: self.logviewModel.processLineDataLogcat(line.rstrip("\n"), colors),
-            stop_flag_fn=lambda: self._logcatStreaming,
-            target_buffer=self._logcatBuffer,
-        )
+        process_fn = lambda line, colors: self.logviewModel.processLineDataLogcat(line.rstrip("\n"), colors)
+        file = None
+        try:
+            file = open(file_path, 'r', encoding='utf-8')
+            file.seek(0, os.SEEK_END)
+            while self._logcatStreaming:
+                line = file.readline()
+                if line:
+                    colors = self.filterLog.colors()
+                    result = process_fn(line, colors)
+                    if result[0]:
+                        self._logcatBuffer.append(result[1])
+                else:
+                    # Check if writer rotated to a new file
+                    if len(self._logcatFileQueue) > file_index + 1:
+                        file.close()
+                        self._logcatBuffer.clear()
+                        self._pendingClearLog = True
+                        file_index += 1
+                        file_path = self._logcatFileQueue[file_index]
+                        while not os.path.exists(file_path) and self._logcatStreaming:
+                            time.sleep(0.05)
+                        if not self._logcatStreaming:
+                            break
+                        file = open(file_path, 'r', encoding='utf-8')
+                    else:
+                        time.sleep(0.1)
+        except Exception as e:
+            print(f"Error while streaming logcat file: {e}")
+        finally:
+            if file and not file.closed:
+                file.close()
 
     def _flushLogcatBuffer(self):
+        if self._pendingClearLog:
+            self._pendingClearLog = False
+            self.logviewModel.updateData([])
+            self._nextLineNum = 1
+            self._trimmedOffset = 0
         if not self._logcatBuffer:
             return
         entries = []
@@ -536,13 +586,6 @@ class Controller(QObject):
             self._nextLineNum += 1
 
     def _batchInsert(self, entries):
-        """Insert entries, trimming oldest rows if over MAX_LOG_ROWS (live streams only)."""
-        current = self.logviewModel.rowCount()
-        total = current + len(entries)
-        if total > MAX_LOG_ROWS:
-            excess = total - MAX_LOG_ROWS
-            self.logviewModel.trimRows(excess)
-            self._trimmedOffset += excess
         self.logviewModel.addRows(entries)
 
     def _onLogcatStopped(self, result):
