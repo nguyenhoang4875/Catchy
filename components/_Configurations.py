@@ -2,7 +2,7 @@ from PySide6.QtCore import QObject, Slot
 import json
 from pathlib import Path
 import os
-ROOT_FOLDER = "C:/QtLogViewer"
+ROOT_FOLDER = "D:/CatchyLog"
 class Configurations(QObject):
     def __init__(self, parent=None):
         super().__init__(parent)

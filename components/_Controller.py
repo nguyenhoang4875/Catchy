@@ -23,8 +23,8 @@ import datetime
 import shutil
 from collections import deque
 from pathlib import Path
-ROOT_FOLDER     = "C:/QtLogViewer"
-STREAM_FLAG     = "C:/QtLogViewer/stream.txt"
+ROOT_FOLDER     = "D:/CatchyLog"
+STREAM_FLAG     = "D:/CatchyLog/stream.txt"
 
 class Controller(QObject):
     showLoadingScreenChanged    = Signal()
@@ -66,7 +66,10 @@ class Controller(QObject):
         self._configs               = Configurations()
         self._configs.loadLastSavedConfig()
 
-        filterPath = self._configs.getConfigs()["filter"]["path"]
+        filterPath = self._configs.getConfigs().get("filter", {}).get("path", "")
+        if not filterPath or not os.path.isdir(os.path.dirname(filterPath)):
+            filterPath = os.path.join(ROOT_FOLDER, "filter.json")
+            self._configs.saveConfig("filter", {"path": filterPath})
         self.filterLog.create(filterPath)
         self._originalFilters = self.filterLog.originalFilters()
         self._nextLineNum       = 1
@@ -424,7 +427,8 @@ class Controller(QObject):
         if not self._hasAdbDevices:
             return
 
-        current_time = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        now = datetime.datetime.now()
+        current_time = now.strftime("%Y%m%d_%H%M%S") + f"_{now.microsecond // 1000:03d}"
         self._logcatFilePath = os.path.join(ROOT_FOLDER, f"logcat_{current_time}.log")
         self._logcatFileQueue = deque()
         self._logcatFileQueue.append(self._logcatFilePath)
@@ -507,7 +511,8 @@ class Controller(QObject):
                     current_size += len(line.encode('utf-8'))
                     if current_size >= MAX_LOGCAT_FILE_SIZE:
                         log_file.close()
-                        new_time = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+                        now = datetime.datetime.now()
+                        new_time = now.strftime("%Y%m%d_%H%M%S") + f"_{now.microsecond // 1000:03d}"
                         self._logcatFilePath = os.path.join(ROOT_FOLDER, f"logcat_{new_time}.log")
                         self._logcatFileQueue.append(self._logcatFilePath)
                         log_file = open(self._logcatFilePath, 'w', encoding='utf-8', buffering=1)

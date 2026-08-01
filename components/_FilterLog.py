@@ -4,6 +4,7 @@ from PySide6.QtGui import QColor
 import json
 import copy
 import re
+import os
 class FilterLog(QObject):
     displayedFilterChanged  = Signal()
     filterCriteriaChanged   = Signal()
@@ -112,6 +113,7 @@ class FilterLog(QObject):
         filters = []
         for key in self._loadedFilters:
             filters.append(self._loadedFilters[key])
+        os.makedirs(os.path.dirname(self._filterPath), exist_ok=True)
         with open(self._filterPath, 'w', encoding='utf-8') as file:
             json.dump(filters, file, indent=4)
 

@@ -31,7 +31,7 @@ LOG_LEVEL_COLORS = {
     "F": "#A222B2",
 }
 
-ROOT_FOLDER = "C:/QtLogViewer"
+ROOT_FOLDER = "D:/CatchyLog"
 
 # Regex patterns kept as fallback only — manual parsers are faster.
 log_pattern = re.compile(

@@ -1,8 +1,8 @@
-# Architecture: QtLogViewer
+# Architecture: CatchyLog
 
 ## Overview
 
-QtLogViewer is a desktop log viewer application built with **Python + PySide6 (Qt for Python)** for the backend and **QML** for the UI. It follows an **MVVM-like pattern** where Python classes act as ViewModels/Services and QML handles the View layer, communicating via Qt's property/signal system.
+CatchyLog is a desktop log viewer application built with **Python + PySide6 (Qt for Python)** for the backend and **QML** for the UI. It follows an **MVVM-like pattern** where Python classes act as ViewModels/Services and QML handles the View layer, communicating via Qt's property/signal system.
 
 ---
 
@@ -135,7 +135,7 @@ Generic async task runner used with `QThread`.
 
 ### `_Configurations.py` — Persistence
 
-Loads and saves application configuration from `C:/QtLogViewer/savedConfig.json`.
+Loads and saves application configuration from `D:/CatchyLog/savedConfig.json`.
 
 - On startup, restores: last filter path, theme, column visibility.
 - `saveConfig(key, value)` persists individual keys to disk.
@@ -241,7 +241,7 @@ FilterLog.filteredRegex changes (Signal)
 
 | File                              | Purpose                                    |
 |-----------------------------------|--------------------------------------------|
-| `C:/QtLogViewer/savedConfig.json` | Runtime config: theme, filter path       |
+| `D:/CatchyLog/savedConfig.json` | Runtime config: theme, filter path       |
 | `configurations/filters.json`     | Default/bundled filter definitions         |
 | `configurations/homeFilter.json`  | Home filter preset                         |
 | `configurations/savedConfig.json` | Dev-time config fallback                   |
