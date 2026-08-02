@@ -11,7 +11,7 @@ ApplicationWindow {
     visible: true
     width: 1280
     height: 720
-    title: "Log Viewer"
+    title: controller.openedFileName ? (controller.openedFileName + " - Log Viewer") : "Log Viewer"
     Universal.theme: Styler.themeMode === Styler.ThemeMode.DARK ? Universal.Dark : Universal.Light
 
     Item {
@@ -748,6 +748,34 @@ ApplicationWindow {
             anchors.bottom: parent.bottom
             anchors.right: parent.right
             z: 1000
+        }
+
+        DropArea {
+            id: fileDropArea
+            anchors.fill: parent
+            keys: ["text/uri-list"]
+
+            onDropped: (drop) => {
+                if (drop.hasUrls && drop.urls.length > 0) {
+                    controller.openFileByPath(drop.urls[0].toString())
+                }
+            }
+
+            Rectangle {
+                id: dropOverlay
+                anchors.fill: parent
+                color: "#80000000"
+                visible: fileDropArea.containsDrag
+                z: 999
+
+                Text {
+                    anchors.centerIn: parent
+                    text: "Drop file to open"
+                    color: "#ffffff"
+                    font.pixelSize: 24
+                    font.family: muktaVaani.font.family
+                }
+            }
         }
 
     }

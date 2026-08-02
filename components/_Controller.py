@@ -45,6 +45,7 @@ class Controller(QObject):
     isLoadingChanged            = Signal()
     isSavingChanged             = Signal()
     saveProgressChanged         = Signal()
+    openedFileNameChanged       = Signal()
     def __init__(self, parent=None):
         super().__init__(parent)
         self.create()
@@ -80,6 +81,7 @@ class Controller(QObject):
         self._loadCancelled     = False
         self._loadProgress      = 0.0
         self._loadingFileName   = ""
+        self._openedFileName    = ""
         self._isLoading         = False
         self._isSaving          = False
         self._saveProgressVal   = 0.0
@@ -279,6 +281,15 @@ class Controller(QObject):
     def loadingFileName(self, val):
         self._loadingFileName = val
         self.loadingFileNameChanged.emit()
+
+    @Property(str, notify=openedFileNameChanged)
+    def openedFileName(self):
+        return self._openedFileName
+
+    @openedFileName.setter
+    def openedFileName(self, val):
+        self._openedFileName = val
+        self.openedFileNameChanged.emit()
 
     @Property(bool, notify=isLoadingChanged)
     def isLoading(self):
@@ -633,21 +644,33 @@ class Controller(QObject):
         file_dialog.setNameFilter("All files (*.*);;Log files (*.log)")
         if file_dialog.exec():
             selected_file = file_dialog.selectedFiles()[0]
-            self._loadCancelled = False
-            self.loadingFileName = os.path.basename(selected_file)
-            self.loadProgress = 0.0
-            self.isLoading = True
-            self.showLoadingScreen = True
-            self.logviewModel.updateData([])
-            self._nextLineNum = 1
-            self._trimmedOffset = 0
+            self._loadFile(selected_file)
 
-            self.worker = Worker(self._loadFileBatched, selected_file)
-            self.worker.batchLoaded.connect(self._onBatchLoaded)
-            self.worker.moveToThread(self._loadLogFileThread)
-            self.worker.taskCompleted.connect(self._onFileLoadComplete)
-            self._loadLogFileThread.started.connect(self.worker.run)
-            self._loadLogFileThread.start()
+    @Slot(str)
+    def openFileByPath(self, file_path):
+        """Open a file by its path (used for drag-and-drop)."""
+        if file_path.startswith("file:///"):
+            file_path = file_path[8:]  # Remove file:/// prefix
+        file_path = os.path.normpath(file_path)
+        if os.path.isfile(file_path):
+            self._loadFile(file_path)
+
+    def _loadFile(self, file_path):
+        self._loadCancelled = False
+        self.loadingFileName = os.path.basename(file_path)
+        self.loadProgress = 0.0
+        self.isLoading = True
+        self.showLoadingScreen = True
+        self.logviewModel.updateData([])
+        self._nextLineNum = 1
+        self._trimmedOffset = 0
+
+        self.worker = Worker(self._loadFileBatched, file_path)
+        self.worker.batchLoaded.connect(self._onBatchLoaded)
+        self.worker.moveToThread(self._loadLogFileThread)
+        self.worker.taskCompleted.connect(self._onFileLoadComplete)
+        self._loadLogFileThread.started.connect(self.worker.run)
+        self._loadLogFileThread.start()
 
     @Slot()
     def cancelLoad(self):
@@ -686,6 +709,7 @@ class Controller(QObject):
         self.isLoading = False
         self.showLoadingScreen = False
         self.logViewReady = True
+        self.openedFileName = self._loadingFileName
         self.loadLogFileCompleted.emit()
         self.toast.show(TOAST.INFO, f"Loaded {len(all_entries):,} records")
 
