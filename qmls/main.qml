@@ -494,6 +494,13 @@ ApplicationWindow {
             }
         }
 
+        Shortcut {
+            sequence: "Ctrl+P"
+            onActivated: {
+                helper.autoScrollDown = !helper.autoScrollDown
+            }
+        }
+
         SplitView {
             id: verSplit
             orientation: Qt.Vertical
