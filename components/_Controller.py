@@ -11,7 +11,7 @@ from components._Bookmark import Bookmark
 from components._Toast import Toast, TOAST
 from components._Helper import *
 from components._SortFilterProxyModel import SortFilterProxyModel
-from components._Defines import SOURCE_FILE, SOURCE_LOGCAT, WRITE_CHUNK_SIZE, IO_BUFFER_SIZE, MAX_LOGCAT_FILE_SIZE
+from components._Defines import SOURCE_FILE, SOURCE_LOGCAT, WRITE_CHUNK_SIZE, IO_BUFFER_SIZE, MAX_LOGCAT_FILE_SIZE, MAX_LOGCAT_FILES
 import pyperclip
 import re
 import os
@@ -527,6 +527,13 @@ class Controller(QObject):
                         new_time = now.strftime("%Y%m%d_%H%M%S") + f"_{now.microsecond // 1000:03d}"
                         self._logcatFilePath = os.path.join(ROOT_FOLDER, f"logcat_{new_time}.log")
                         self._logcatFileQueue.append(self._logcatFilePath)
+                        # Remove oldest file when exceeding MAX_LOGCAT_FILES
+                        if len(self._logcatFileQueue) > MAX_LOGCAT_FILES:
+                            oldest = self._logcatFileQueue.popleft()
+                            try:
+                                os.remove(oldest)
+                            except OSError:
+                                pass
                         log_file = open(self._logcatFilePath, 'w', encoding='utf-8', buffering=1)
                         current_size = 0
             finally:

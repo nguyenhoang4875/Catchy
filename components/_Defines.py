@@ -10,6 +10,7 @@ BATCH_SIZE          = 50_000      # Records per batch during file loading
 WRITE_CHUNK_SIZE    = 10_000      # Records per chunk during file saving
 IO_BUFFER_SIZE      = 65536       # 64KB I/O buffer for file read/write
 MAX_LOGCAT_FILE_SIZE = 50 * 1024 * 1024  # 50MB file rotation threshold for logcat streaming
+MAX_LOGCAT_FILES     = 10                  # Keep at most 10 rotated files (~500MB total)
 
 
 class Defines(QObject):
