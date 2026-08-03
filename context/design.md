@@ -2,17 +2,16 @@
 
 ## 1. Problem Statement
 
-Catchy currently has critical performance limitations when handling large log files (100MB–500MB+):
+Catchy originally had critical performance limitations when handling large log files (100MB–500MB+). Most have been resolved:
 
-| Issue | Current Behavior | Impact |
+| Issue | Original Behavior | Current Status |
 |-------|-----------------|--------|
-| Blocking file load | Entire file read into memory at once via `loadLogFile()` | UI freezes for 500MB files |
-| 50K row hard cap | `MAX_LOG_ROWS = 50,000` discards older entries | Cannot view full large file |
-| Regex parsing overhead | 3 regex patterns tried per line (`_parse_line()`) | Slow parsing for millions of lines |
-| Duplicate data storage | `_log_data` (list) + `_logDict` (dict) store same entries | 2× memory usage |
-| Save is blocking | `_writeLogToFile()` iterates all rows sequentially | Slow for large datasets |
-| No progress feedback | Loading/saving shows no progress to user | Appears frozen on large files |
-| Full recolor on filter change | `reapplyProcessColors()` iterates ALL rows | O(N) per filter change |
+| Blocking file load | Entire file read into memory at once | **DONE** — Worker thread + 64KB binary chunks, UI responsive |
+| Regex parsing overhead | 3 regex patterns tried per line | **DONE** — Format pre-detection, 1 parser/line |
+| Duplicate data storage | `_log_data` + `_logDict` store same entries | **DONE** — `_logDict` removed, single store only |
+| Save is blocking | Sequential row iteration | **DONE** — Chunked save (10K rows) on worker thread with progress |
+| No progress feedback | Loading/saving shows no progress | **DONE** — `loadProgress` / `saveProgress` properties + `isLoading` / `isSaving` states |
+| Full recolor on filter change | Iterate ALL rows per change | **DONE** — Lazy color computation in `data()` roles |
 
 ## 2. Reference: EasyLog Architecture (C# — handles 500MB+ well)
 
@@ -50,11 +49,11 @@ EasyLog solves the same problem using these key strategies:
 - Writes temp files → renames → optional compression
 - Prevents memory spike from building one giant string
 
-## 3. Proposed Design for Catchy
+## 3. Implementation Status
 
-### 3.1 Chunked / Batched File Loading
+### 3.1 Chunked / Batched File Loading — IMPLEMENTED
 
-**Replace the current all-at-once `loadLogFile()` with a batched streaming approach.**
+**Current architecture:**
 
 ```
                  ┌─────────────────────┐
@@ -62,113 +61,137 @@ EasyLog solves the same problem using these key strategies:
                  └──────────┬──────────┘
                             │
                  ┌──────────▼──────────┐
+                 │  _loadFile(path):    │
+                 │  isLoading=True      │
+                 │  showLoadingScreen   │
+                 │  updateData([])      │
+                 └──────────┬──────────┘
+                            │
+                 ┌──────────▼──────────┐
                  │  Worker thread starts│
-                 │  StreamReader(file)  │
-                 │  64KB buffer         │
+                 │  _loadFileBatched()  │
+                 │  Opens file 'rb'     │
+                 │  64KB buffer chunks  │
                  └──────────┬──────────┘
                             │
               ┌─────────────▼─────────────┐
-              │  Read lines into batch    │
-              │  BATCH_SIZE = 50,000      │
-              │  Parse each line          │
+              │  Read 64KB chunk           │
+              │  Split by b'\n'            │
+              │  Parse via detected format │
+              │  Append to all_entries     │
               └─────────────┬─────────────┘
                             │
               ┌─────────────▼─────────────┐
-              │  Emit batchLoaded signal  │──► Main thread: addRows(batch)
-              │  Include progress %       │──► Main thread: update progress bar
+              │  Every 5K lines:           │
+              │  Emit progress float       │──► Main thread: update loadProgress
+              │  (no data transfer)        │
               └─────────────┬─────────────┘
                             │
                     ┌───────▼───────┐
-                    │   More lines? │──Yes──► Loop back to read
+                    │  More chunks? │──Yes──► Loop back to read
                     └───────┬───────┘
                             │ No
               ┌─────────────▼─────────────┐
-              │  Emit loadComplete signal │──► Main thread: finalize UI
+              │  Return all_entries        │
+              │  via taskCompleted signal  │──► Main thread: single updateData()
               └───────────────────────────┘
 ```
 
-**Key changes:**
-- New constant: `BATCH_SIZE = 50_000`
-- Remove `MAX_LOG_ROWS` cap for file loading (keep for live logcat only)
-- Worker emits `batchLoaded(entries, progress_pct)` signal per batch
-- Main thread calls `addRows()` per batch (already uses `beginInsertRows/endInsertRows`)
-- File opened with buffered reading (`buffering=65536`)
+**Implementation details:**
+- `IO_BUFFER_SIZE = 65536` (64KB binary read buffer)
+- `BATCH_SIZE = 50_000` constant defined but not used for batched emission (entire file returned at once)
+- Progress emitted via `worker.batchLoaded.emit(None, pct)` — only float, no data payload
+- `_onBatchLoaded` just updates `self.loadProgress = progress`
+- `_onFileLoadComplete` does single `updateData(all_entries)` → `beginResetModel/endResetModel`
+- Cancellation via `_loadCancelled` flag checked each chunk
 
-### 3.2 Format Pre-Detection
-
-**Detect the log format once using the first few lines, then use only that parser.**
+### 3.2 Format Pre-Detection — IMPLEMENTED
 
 ```
 ┌──────────────────────────────────┐
-│  Read first 20 lines of file     │
-│  Try each regex pattern          │
-│  Pick the pattern that matches   │
-│  most lines (≥1 match = chosen)  │
+│  detect_format(file_path):       │
+│  Read first 20 lines             │
+│  Try each fast parser first:     │
+│    _FMT_ISO → _parse_iso_fast    │
+│    _FMT_LOGCAT → _parse_logcat_regex │
+│    _FMT_COMPACT → _parse_compact_fast │
+│  Pick first with ≥1 hit          │
+│  If none: try regex patterns     │
+│  Return (fmt_enum, fallback_pat) │
 └──────────────┬───────────────────┘
                │
      ┌─────────▼──────────┐
-     │ Use ONLY the chosen │
-     │ parser for rest of  │
-     │ file (1 regex/line) │
+     │ Build parse closure │
+     │ with inlined tag    │
+     │ interning           │
+     │ Use only chosen     │
+     │ parser + rare       │
+     │ fallback path       │
      └────────────────────┘
 ```
 
-**Impact:** Reduces regex operations from 3×N to 1×N (3× faster parsing).
+**Fast parsers available:**
+- `_parse_compact_fast`: Pure `str.find()` bracket parsing — no regex (C-layer speed)
+- `_parse_iso_fast`: Uses `log_pattern` regex (ISO format)
+- `_parse_logcat_regex`: Uses `logcat_pattern` regex (Android threadtime)
 
-### 3.3 Eliminate Duplicate Data Storage
+**Impact:** Reduces from 3 patterns tried per line to 1 chosen parser + rare fallback.
 
-**Remove `_logDict` and use `_log_data` list with index-based O(1) access.**
+### 3.3 Eliminate Duplicate Data Storage — IMPLEMENTED
 
-| Current | Proposed |
-|---------|----------|
-| `_log_data`: list of dicts | `_log_data`: list of dicts (primary store) |
-| `_logDict`: dict mapping `line_number → entry` | **Removed** — use `_log_data[index]` directly |
+| Before | After (Current) |
+|--------|----------|
+| `_log_data`: list of dicts | `_log_data`: list of dicts (single store) |
+| `_logDict`: dict mapping `line_number → entry` | **Removed** |
 | 2× memory | 1× memory |
 
-- `_logDict` is currently used for detail panel lookups by `line_number`
-- Replace with direct index access: `_log_data[row_index]`
-- For logcat streaming where rows are trimmed, maintain an offset counter: `actual_index = line_number - _trimmed_count`
+- Detail panel lookups use direct index: `_log_data[line - 1 - _trimmedOffset]`
+- `_trimmedOffset` tracks rows trimmed from front (for future row cap support)
 
-### 3.4 String Interning for Tags
-
-**Pool frequently repeated tag strings to reduce memory.**
+### 3.4 String Interning for Tags — IMPLEMENTED
 
 ```python
 class TagInternPool:
+    __slots__ = ('_pool',)
     def __init__(self):
         self._pool = {}
+    def intern(self, tag):
+        existing = self._pool.get(tag)
+        if existing is not None:
+            return existing
+        self._pool[tag] = tag
+        return tag
+    def clear(self):
+        self._pool.clear()
 
-    def intern(self, tag: str) -> str:
-        if tag not in self._pool:
-            self._pool[tag] = tag
-        return self._pool[tag]
+_tag_pool = TagInternPool()  # module-level singleton
 ```
 
-**Savings estimate for 10M records with ~300 unique tags:**
-- Without interning: 10M × ~20 bytes/tag = ~200MB
-- With interning: 300 × 20 bytes + 10M × 8 bytes (references) = ~80MB
-- **~120MB saved**
+Used in two places:
+1. Fast parser closure in `loadLogFile()`: inlines `_tag_pool.intern()` for tag dedup
+2. `_normalize_entry()`: interns tag for streaming/fallback paths
 
-### 3.5 Batched / Chunked File Saving
-
-**Replace the current sequential save with a chunked write approach.**
+### 3.5 Batched / Chunked File Saving — IMPLEMENTED
 
 ```
-┌────────────────────────────┐
-│  Worker thread starts      │
-│  Open output file          │
-│  WRITE_CHUNK = 10,000 rows │
-└────────────┬───────────────┘
+┌────────────────────────────────┐
+│  Worker thread starts           │
+│  _writeLogToFile(file_path)     │
+│  Open file with 64KB buffer     │
+│  WRITE_CHUNK_SIZE = 10,000 rows │
+└────────────┬───────────────────┘
              │
   ┌──────────▼──────────┐
   │  Format chunk of     │
-  │  rows into string    │
-  │  buffer (join lines) │
+  │  rows via            │
+  │  format_log_line()   │
+  │  Join with '\n'      │
   └──────────┬──────────┘
              │
   ┌──────────▼──────────┐
   │  Write buffer to file│
-  │  Emit progress signal│
+  │  Update _saveProgressVal │
+  │  Emit saveProgressChanged │
   └──────────┬──────────┘
              │
      ┌───────▼───────┐
@@ -176,68 +199,83 @@ class TagInternPool:
      └───────┬───────┘
              │ No
   ┌──────────▼──────────┐
+  │  Write final '\n'    │
   │  Close file          │
-  │  Emit saveComplete   │
+  │  Return True/False   │
   └─────────────────────┘
 ```
 
-**Key changes:**
-- Build output in chunks using `'\n'.join()` for batch of rows
-- Emit `saveProgress(pct)` signal → UI shows progress
-- Use `buffering=65536` on output file for I/O efficiency
-- Optional: write only filtered rows (currently saves all)
+**Implementation:**
+- Uses `IO_BUFFER_SIZE` (64KB) for output file buffering
+- Emits `saveProgressChanged` signal per chunk → `isSaving` and `saveProgress` properties on Controller
+- `onLogFileSaved(success)` shows toast and resets `isSaving`
+- Default filename uses `YYYYMMDD_HHMMSS.log` format
 
-### 3.6 Progress Feedback UI
+### 3.6 Progress Feedback UI — IMPLEMENTED
 
-**Add a loading/saving progress indicator to the QML UI.**
+Controller exposes these properties to QML:
 
-- Reuse or extend existing `LoadingScreen.qml` component
-- Show: percentage, record count, elapsed time
-- Support cancellation via a cancel button
+```python
+# Loading
+isLoading: bool           # True during file load
+loadProgress: float       # 0.0–1.0
+loadingFileName: str      # basename of file being loaded
+showLoadingScreen: bool   # controls LoadingScreen.qml visibility
 
+# Saving
+isSaving: bool            # True during file save
+saveProgress: float       # 0.0–1.0
+
+# Cancellation
+cancelLoad() slot         # sets _loadCancelled flag
 ```
-┌─────────────────────────────────────────┐
-│  Loading: data_log.log                  │
-│  ████████████░░░░░░░░  62%              │
-│  3,100,000 / 5,000,000 records          │
-│  Elapsed: 12s                           │
-│                              [Cancel]   │
-└─────────────────────────────────────────┘
+
+QML components: `LoadingScreen.qml` displays during load.
+
+### 3.7 Lazy Color Computation — IMPLEMENTED
+
+| Before | After (Current) |
+|--------|----------|
+| Compute/store color per entry during load | No color stored per entry |
+| `reapplyProcessColors()` iterates ALL rows | `setFilterColors()` emits `dataChanged` for color roles |
+| O(N) recompute per filter change | O(visible rows) via Qt's lazy `data()` calls |
+
+**Current implementation in `LogModel.data()`:**
+```python
+if role == ROLE_FILTER_COLOR:
+    return self._filter_color_for_entry(entry, self._colors)
+if role == ROLE_LEVEL_COLOR:
+    return self._level_color_for_entry(entry)
 ```
 
-### 3.7 Lazy Color Computation
+- `setFilterColors()` pre-compiles regex patterns into `_compiled_colors` list
+- `_filter_color_for_entry()` iterates compiled patterns against `PROCESS_NAME`
+- `_level_color_for_entry()` is a simple dict lookup (`LOG_LEVEL_COLORS`)
+- On filter change: bumps `_filter_version`, emits `dataChanged` for all rows with color roles
+- Qt only calls `data()` for visible rows → effective O(visible) not O(N)
 
-**Defer color computation from load time to render time.**
-
-| Current | Proposed |
-|---------|----------|
-| Compute color for every entry during `loadLogFile()` | Store entries without color fields |
-| `reapplyProcessColors()` iterates ALL rows on filter change | Compute color in `data()` role handler on demand |
-| O(N) per filter change | O(visible rows) per filter change |
-
-- `data()` method in `LogModel` already resolves display roles per-cell
-- Add color computation in the `filterColor` / `levelColor` role handlers
-- Cache computed colors with a dirty flag — invalidate on filter change
-- `dataChanged` signal scoped to visible row range only
-
-### 3.8 Architecture Overview (After Changes)
+### 3.8 Architecture Overview (Current)
 
 ```
 ┌─────────────────────────────────────────────────────────┐
 │                     QML UI Layer                         │
 │  ┌───────────┐  ┌──────────┐  ┌────────────────────┐   │
-│  │LogViewTable│  │LoadScreen│  │ProgressIndicator   │   │
+│  │LogViewTable│  │LoadScreen│  │ Progress/Toast      │   │
 │  └─────┬─────┘  └────┬─────┘  └─────────┬──────────┘   │
 │        │              │                  │               │
 │  ┌─────▼──────────────▼──────────────────▼──────────┐   │
-│  │          SortFilterProxyModel                     │   │
+│  │     SortFilterProxyModel (Python, index-based)    │   │
+│  │     _indices: proxy_row → source_row              │   │
+│  │     _rebuild(): O(N) filter + beginResetModel     │   │
+│  │     _on_rows_inserted(): streaming append         │   │
 │  └──────────────────────┬───────────────────────────┘   │
 │                         │                                │
 │  ┌──────────────────────▼───────────────────────────┐   │
 │  │     LogModel (QAbstractTableModel)                │   │
 │  │     _log_data: List[dict]  (single store)         │   │
 │  │     Lazy color computation in data() roles        │   │
-│  │     addRows() / trimRows() with batch signals     │   │
+│  │     addRows() batch insert with begin/end signals │   │
+│  │     updateData() single reset for file loads      │   │
 │  └──────────────────────┬───────────────────────────┘   │
 └─────────────────────────┼───────────────────────────────┘
                           │
@@ -245,39 +283,58 @@ class TagInternPool:
 │                   Python Backend                         │
 │                                                          │
 │  ┌──────────────────┐  ┌───────────────────────────┐    │
-│  │  Worker Thread   │  │  Controller               │    │
-│  │  (QThread)       │  │  - openFileDialog()       │    │
-│  │                  │  │  - saveLogFile()           │    │
-│  │  Batched load:   │  │  - batchLoaded signal     │    │
-│  │  50K rows/batch  │  │  - saveProgress signal    │    │
-│  │  Format pre-det  │  │  - loadComplete signal    │    │
-│  │  Tag interning   │  │  - saveComplete signal    │    │
+│  │  Worker Threads   │  │  Controller               │    │
+│  │  (QThread)        │  │  - openFileDialog()       │    │
+│  │                   │  │  - saveLogFile()           │    │
+│  │  File load:       │  │  - startLogcat()          │    │
+│  │  64KB binary read │  │  - loadProgress property  │    │
+│  │  Format pre-det   │  │  - saveProgress property  │    │
+│  │  Tag interning    │  │  - cancelLoad() slot      │    │
+│  │  Single return    │  │  - isLoading/isSaving     │    │
+│  │                   │  │                           │    │
+│  │  Logcat writer:   │  │  Logcat streaming:        │    │
+│  │  adb → file       │  │  - _logcatBuffer (deque)  │    │
+│  │  50MB rotation    │  │  - 100ms flush timer      │    │
+│  │                   │  │  - _flushLogcatBuffer()   │    │
+│  │  Logcat reader:   │  │  - _batchInsert()         │    │
+│  │  file → buffer    │  │  - auto-scroll pause      │    │
 │  └──────────────────┘  └───────────────────────────┘    │
 │                                                          │
 │  ┌──────────────────────────────────────────────────┐    │
-│  │  TagInternPool                                    │    │
+│  │  TagInternPool (_tag_pool singleton)              │    │
 │  │  - intern(tag) → pooled string reference          │    │
+│  │  - Used in fast parser closures + _normalize_entry│    │
 │  └──────────────────────────────────────────────────┘    │
 └──────────────────────────────────────────────────────────┘
 ```
 
 ## 4. Performance Targets
 
-| Metric | Current (est.) | Target |
-|--------|---------------|--------|
-| Load 500MB file | Freezes / crashes | < 30s, UI responsive |
-| Load 100MB file | ~15s, UI frozen | < 5s, UI responsive |
-| Save 500MB file | Very slow, no progress | < 20s with progress |
-| Memory for 5M records | ~1GB+ (2× duplicate) | ~500MB (single store + interning) |
-| Filter change (5M records) | ~5s full recolor | < 0.5s (lazy, visible rows only) |
-| Parse speed | ~3 regex/line | 1 regex/line (pre-detected format) |
+| Metric | Original (before) | Target | Current Status |
+|--------|---------------|--------|----------------|
+| Load 500MB file | Freezes / crashes | < 30s, UI responsive | Worker thread, UI responsive, single model reset |
+| Load 100MB file | ~15s, UI frozen | < 5s, UI responsive | Worker thread, progress reporting |
+| Save 500MB file | Very slow, no progress | < 20s with progress | Chunked save with progress |
+| Memory for 5M records | ~1GB+ (2× duplicate) | ~500MB (single store + interning) | Single store + tag interning |
+| Filter change (5M records) | ~5s full recolor | < 0.5s (lazy, visible rows only) | Lazy data() + dataChanged signal |
+| Parse speed | ~3 regex/line | 1 regex/line (pre-detected format) | Implemented |
 
 ## 5. Risk & Mitigation
 
 | Risk | Mitigation |
 |------|-----------|
-| Qt model signals from worker thread crash | Ensure `addRows()` always called on main thread via signal-slot |
-| Very large files exceed available RAM | Add configurable row limit with user warning; future: virtual/paged model |
-| Format detection picks wrong parser | Fallback: if chosen parser fails on a line, try others (rare path) |
-| Breaking existing logcat streaming | Keep `MAX_LOG_ROWS` cap for logcat only; file load uses separate path |
-| Regression in filter/search behavior | Keep existing `SortFilterProxyModel` interface unchanged |
+| Qt model signals from worker thread crash | All model mutations on main thread: `updateData()` in `_onFileLoadComplete`, `addRows()` in `_flushLogcatBuffer` (timer callback) |
+| Very large files exceed available RAM | All entries loaded into memory; future: configurable row limit or virtual/paged model |
+| Format detection picks wrong parser | Fallback: if chosen parser returns None, `_parse_line()` tries all patterns |
+| Breaking existing logcat streaming | Logcat uses separate `processLineDataLogcat()` path, file rotation handles disk |
+| Regression in filter/search behavior | Custom `SortFilterProxyModel` keeps same interface, binary search for rowLineNum |
+
+## 6. Future Improvements (Not Yet Implemented)
+
+| Improvement | Description |
+|-------------|-------------|
+| True batched loading | Currently loads all entries then single reset. Could batch-emit to model for earlier display |
+| Row cap for streaming | `trimRows()` exists but unused; could cap in-memory rows for very long logcat sessions |
+| Zero-regex manual parsing for logcat | `_parse_logcat_regex` still uses regex; a `str.find()` parser would be faster |
+| Virtual/paged model | For files exceeding available RAM, load only visible window + disk-backed store |
+| Parallel parsing | Split file into segments, parse in multiple threads, merge results |
