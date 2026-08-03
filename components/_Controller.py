@@ -90,7 +90,6 @@ class Controller(QObject):
         self._logcatFileQueue     = deque()
         self._logcatStreaming     = False
         self._logcatStreamThread  = QThread()
-        self._pendingClearLog     = False
 
         self._logcatFlushTimer = QTimer(self)
         self._logcatFlushTimer.setInterval(100)
@@ -445,6 +444,7 @@ class Controller(QObject):
         self._logcatFileQueue.append(self._logcatFilePath)
         self._logcatStreaming = True
 
+        self.openedFileName = os.path.basename(self._logcatFilePath)
         self.logviewModel.updateData([])
         self._nextLineNum = 1
         self._trimmedOffset = 0
@@ -565,7 +565,6 @@ class Controller(QObject):
                     if len(self._logcatFileQueue) > file_index + 1:
                         file.close()
                         self._logcatBuffer.clear()
-                        self._pendingClearLog = True
                         file_index += 1
                         file_path = self._logcatFileQueue[file_index]
                         while not os.path.exists(file_path) and self._logcatStreaming:
@@ -582,11 +581,6 @@ class Controller(QObject):
                 file.close()
 
     def _flushLogcatBuffer(self):
-        if self._pendingClearLog:
-            self._pendingClearLog = False
-            self.logviewModel.updateData([])
-            self._nextLineNum = 1
-            self._trimmedOffset = 0
         if not self._logcatBuffer:
             return
         entries = []
