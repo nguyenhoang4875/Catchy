@@ -449,6 +449,7 @@ class Controller(QObject):
         self._nextLineNum = 1
         self._trimmedOffset = 0
         self._logcatBuffer.clear()
+        self.bookmark.clearAll()
         self.logViewReady = True
         self.helper.autoScrollDown = True
         self._logcatFlushTimer.start()
@@ -658,6 +659,7 @@ class Controller(QObject):
         self.logviewModel.updateData([])
         self._nextLineNum = 1
         self._trimmedOffset = 0
+        self.bookmark.clearAll()
 
         self.worker = Worker(self._loadFileBatched, file_path)
         self.worker.batchLoaded.connect(self._onBatchLoaded)

@@ -5,7 +5,11 @@ import QtQuick.Dialogs
 import Styles
 Item {
     id: root
-    
+
+    function toggleBookmarkTab() {
+        bar.currentIndex = bar.currentIndex === 1 ? 0 : 1
+    }
+
     ColorDialog {
         id: colorDialog
         title: "Please choose a color"

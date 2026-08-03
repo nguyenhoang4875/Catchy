@@ -277,7 +277,6 @@ ApplicationWindow {
                     [Styler.ThemeMode.LIGHT]: "#3A1D5E"
                 })[Styler.themeMode]
                 leftPadding: 10
-                enabled: controller.logViewReady
                 clip: true
 
                 Component.onCompleted: {
@@ -482,6 +481,16 @@ ApplicationWindow {
             sequence: "Ctrl+Shift+T"
             onActivated: {
                 filterDetailPanel.openPanel(FilterDetailPanel.Type.New)
+            }
+        }
+
+        Shortcut {
+            sequence: "Ctrl+M"
+            onActivated: {
+                if (controller.showLessColumns) {
+                    controller.showLessColumns = false
+                }
+                leftView.toggleBookmarkTab()
             }
         }
 
