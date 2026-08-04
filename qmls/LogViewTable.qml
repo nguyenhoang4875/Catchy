@@ -331,6 +331,12 @@ Item {
         clip: true
         focus: true
 
+        onActiveFocusChanged: {
+            if (!activeFocus) {
+                interactive = true
+            }
+        }
+
         Rectangle {
             anchors.fill: parent
             color: root.logRowColor
