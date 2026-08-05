@@ -330,12 +330,12 @@ class LogModel(QAbstractTableModel):
 
     def format_log_line(self, log_entry):
         return (
-            f"[{log_entry.get(DATE_TIME, '')}] "
-            f"[{log_entry.get(PID, '')}] "
-            f"[{log_entry.get(TID, '')}] "
-            f"[{log_entry.get(LOG_LEVEL, '')}] "
-            f"[{log_entry.get(TAG, '')}] "
-            f"[{log_entry.get(MESSAGE, '')}]"
+            f"{log_entry.get(DATE_TIME, '')} "
+            f"{log_entry.get(PID, '')} "
+            f"{log_entry.get(TID, '')} "
+            f"{log_entry.get(LOG_LEVEL, '')} "
+            f"{log_entry.get(TAG, '')}: "
+            f"{log_entry.get(MESSAGE, '')}"
         )
 
     def loadLogFile(self, file_path, colors, progress_callback=None, cancel_flag=None):
