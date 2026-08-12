@@ -1,0 +1,135 @@
+@startuml Live Logcat Streaming
+
+title Live Logcat Streaming — Sequence Diagram
+skin rose
+
+
+
+participant "QML UI"            as UI     
+participant "Controller"        as Ctrl  
+participant "Writer Thread\n(_logcatThread)" as WT
+participant "ADB Process"       as ADB    
+participant ".log File"         as File   
+participant "Reader Thread\n(_logcatStreamThread)" as RT 
+participant "QTimer\n(100ms)"   as Timer 
+participant "LogModel"          as Model 
+
+== Startup ==
+
+UI -> Ctrl : startLogcat()
+activate Ctrl
+
+Ctrl -> Ctrl : check adb in PATH
+Ctrl -> Ctrl : refreshAdbDeviceAvailability()
+Ctrl -> Ctrl : create logcat_YYYYMMDD_HHMMSS.log path
+Ctrl -> Ctrl : reset model, buffer, line counter
+Ctrl -> Timer : start(100ms)
+
+Ctrl -> WT : spawn Worker(_runLogcat)
+activate WT
+Ctrl -> RT : spawn Worker(_streamLogcatFile)
+activate RT
+
+Ctrl -> UI : toast("Reading Android logcat...")
+deactivate Ctrl
+
+== Writer Thread: ADB → File ==
+
+WT -> ADB : Popen(["adb", "logcat", "-v", "threadtime"])
+activate ADB
+
+loop for each line from stdout
+    ADB --> WT : line
+    WT -> File : write(line)
+    WT -> WT : current_size += len(line)
+
+    alt current_size >= 50MB
+        WT -> File : close()
+        WT -> WT : create new timestamped .log path
+        WT -> WT : append to _logcatFileQueue
+
+        opt len(queue) > MAX_LOGCAT_FILES (10)
+            WT -> WT : delete oldest file
+        end
+
+        WT -> File : open(new_path)
+        WT -> WT : current_size = 0
+    end
+end
+
+deactivate ADB
+
+== Reader Thread: File → Buffer ==
+
+RT -> File : open & seek to end
+activate File
+
+loop while _logcatStreaming
+    RT -> File : readline()
+
+    alt line available
+        File --> RT : line
+        RT -> RT : processLineDataLogcat(line, colors)\nparse with logcat_pattern regex
+        RT -> RT : append parsed entry\nto _logcatBuffer (deque)
+    else no line & writer rotated
+        RT -> File : close current file
+        RT -> RT : clear buffer
+        RT -> File : open next file from queue
+    else no line & no rotation
+        RT -> RT : sleep(0.1)
+    end
+end
+
+deactivate File
+deactivate RT
+
+== Main Thread: Buffer → UI (every 100ms) ==
+
+loop every 100ms
+    Timer -> Ctrl : timeout signal
+    activate Ctrl
+
+    Ctrl -> Ctrl : _flushLogcatBuffer()
+    Ctrl -> Ctrl : drain _logcatBuffer → entries list
+    Ctrl -> Ctrl : _assignLineNums(entries)\nassign sequential line_number
+
+    Ctrl -> Model : addRows(entries)
+    activate Model
+    Model -> Model : beginInsertRows()
+    Model -> Model : _log_data.extend(entries)
+    Model -> Model : endInsertRows()
+    Model --> UI : QML TableView refreshes
+    deactivate Model
+
+    deactivate Ctrl
+end
+
+== Auto-scroll Control ==
+
+UI -> Ctrl : user scrolls up
+Ctrl -> Timer : stop()
+note right : Buffer accumulates\nsilently, no UI updates
+
+UI -> Ctrl : user re-enables auto-scroll
+Ctrl -> Ctrl : _flushLogcatBuffer()
+Ctrl -> Timer : start(100ms)
+
+== Shutdown ==
+
+UI -> Ctrl : stopLogcat()
+activate Ctrl
+
+Ctrl -> Timer : stop()
+Ctrl -> Ctrl : _logcatStreaming = false
+note right : Breaks reader loop
+
+Ctrl -> ADB : terminate()
+Ctrl -> Ctrl : _flushLogcatBuffer()\ndrain remaining
+
+Ctrl -> WT : quit() & wait()
+deactivate WT
+Ctrl -> RT : quit() & wait()
+
+deactivate Ctrl
+
+@enduml
