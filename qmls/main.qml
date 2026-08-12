@@ -510,8 +510,8 @@ ApplicationWindow {
             anchors.top: menuBar.bottom
 
             handle: Rectangle {
-                implicitHeight: 0.7
-                color: SplitHandle.pressed  ? "#bab5c7"
+                implicitHeight: 5
+                color: SplitHandle.pressed  ? "#0c051e"
                                             : (SplitHandle.hovered ? Qt.lighter("#bab5c7", 1.1) : Qt.darker("#bab5c7", 1.1))
             }
 
@@ -526,8 +526,8 @@ ApplicationWindow {
                     width       : topView.width
 
                     handle: Rectangle {
-                        implicitWidth: 0.7
-                        color: SplitHandle.pressed ? "#bab5c7"
+                        implicitWidth: 5
+                        color: SplitHandle.pressed ? "#0c051e"
                                                     : (SplitHandle.hovered ? Qt.lighter("#bab5c7", 1.1) : Qt.darker("#bab5c7", 1.1))
                     }
 

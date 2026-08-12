@@ -494,12 +494,14 @@ Item {
                         if (root.tableType === LogViewTable.TableType.ViewTable) {
                             highlightLine(lineNumber)
                         } else {
+                            root.highlightLineNum = lineNumber
                             controller.highlightLineNum = lineNumber
                         }
                     } else if (button === Qt.RightButton) {
                         if (root.tableType === LogViewTable.TableType.ViewTable) {
                             highlightLine(lineNumber)
                         } else {
+                            root.highlightLineNum = lineNumber
                             controller.highlightLineNum = lineNumber
                         }
                         let pos = mapToItem(logView, eventPoint.position.x, eventPoint.position.y)
@@ -509,6 +511,7 @@ Item {
                 onDoubleTapped: {
                     if (root.tableType === LogViewTable.TableType.SearchResultsTable) {
                         console.log("Double clicked on search result line number: " + lineNumber)
+                        root.highlightLineNum = lineNumber
                         controller.highlightLineNum = lineNumber
                         helper.autoScrollDown = false
                     }
