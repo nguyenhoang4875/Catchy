@@ -13,7 +13,6 @@ from components._Helper import *
 from components._SortFilterProxyModel import SortFilterProxyModel
 from components._Defines import SOURCE_FILE, SOURCE_LOGCAT, WRITE_CHUNK_SIZE, IO_BUFFER_SIZE, MAX_LOGCAT_FILE_SIZE, MAX_LOGCAT_FILES
 import pyperclip
-import re
 import os
 import json
 import time
@@ -1005,21 +1004,17 @@ class Controller(QObject):
     def hightlightSearchResults(self, line):
         if not self._searchLog.searchWords or not self._searchLog.showSearchResults:
             return line
-        
+
         result_line = line
-        
-        # Highlight từng từ khóa với màu khác nhau
-        for i, word in enumerate(self._searchLog.searchWords):
-            if word:  # Kiểm tra từ khóa không rỗng
-                color = self._searchLog.getColorForIndex(i)
-                # Escape special regex characters để tránh lỗi
-                escaped_word = re.escape(word)
-                pattern = re.compile(escaped_word, re.IGNORECASE)
-                result_line = pattern.sub(
-                    lambda match: f"<span style='background-color: {color}'>{match.group(0)}</span>",
-                    result_line
-                )
-        
+
+        # Regexes are precompiled once per query (see SearchLog.compiledSearchWords),
+        # not per row — this used to recompile on every visible cell every scroll frame.
+        for pattern, color in self._searchLog.compiledSearchWords():
+            result_line = pattern.sub(
+                lambda match, color=color: f"<span style='background-color: {color}'>{match.group(0)}</span>",
+                result_line
+            )
+
         return result_line
 
     def replace_with_span_color(self, match, color):

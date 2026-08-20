@@ -1,5 +1,6 @@
 # This Python file uses the following encoding: utf-8
 from PySide6.QtCore import QObject, Signal, Property, QRegularExpression
+import re
 
 
 class SearchLog(QObject):
@@ -13,6 +14,7 @@ class SearchLog(QObject):
         super().__init__(parent)
         self._searchRegex = QRegularExpression(R"", QRegularExpression.CaseInsensitiveOption | QRegularExpression.DotMatchesEverythingOption)
         self._searchWords = []
+        self._compiledWords = []
         self._showSearchResults = False
         self._previousSearchQuery = ""
         self._searchHistory = []
@@ -40,8 +42,23 @@ class SearchLog(QObject):
         self._searchRegex.setPattern(pattern)
         # Tách các từ khóa bằng dấu |
         self._searchWords = [word.strip() for word in pattern.split('|') if word.strip()]
+        self._rebuildCompiledWords()
         self.searchRegexChanged.emit()
         self.searchWordsChanged.emit()
+
+    def _rebuildCompiledWords(self):
+        """Precompile (regex, color) pairs once per query so per-row highlighting
+        doesn't recompile a regex for every visible cell on every scroll frame."""
+        compiled = []
+        for i, word in enumerate(self._searchWords):
+            try:
+                compiled.append((re.compile(re.escape(word), re.IGNORECASE), self.getColorForIndex(i)))
+            except re.error:
+                continue
+        self._compiledWords = compiled
+
+    def compiledSearchWords(self):
+        return self._compiledWords
 
     @Property(str, notify=previousSearchQueryChanged)
     def previousSearchQuery(self):

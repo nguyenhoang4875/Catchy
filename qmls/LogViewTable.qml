@@ -42,6 +42,7 @@ Item {
     property int highlightLineNum: -1
     property var selectedRows: ({})
     property real maxMessageTextWidth: 0
+    property real pendingMaxMessageTextWidth: 0
     property real headerContentWidth: {
         var fixedTotal = 0
         for (var i = 0; i < logHeaderModel.count; i++) {
@@ -313,7 +314,23 @@ Item {
 
     Connections {
         target: filterProxyModel
-        function onModelReset() { root.maxMessageTextWidth = 0 }
+        function onModelReset() {
+            root.maxMessageTextWidth = 0
+            root.pendingMaxMessageTextWidth = 0
+        }
+    }
+
+    // Coalesces per-row message-width growth so the header/TableView only
+    // relayout once scrolling has a lull, instead of on nearly every frame.
+    Timer {
+        id: maxWidthCommitTimer
+        interval: 200
+        repeat: false
+        onTriggered: {
+            if (root.pendingMaxMessageTextWidth > root.maxMessageTextWidth) {
+                root.maxMessageTextWidth = root.pendingMaxMessageTextWidth
+            }
+        }
     }
 
     TableView {
@@ -536,12 +553,14 @@ Item {
 
                 onImplicitWidthChanged: {
                     if (isLastColumn && implicitWidth > root.maxMessageTextWidth) {
-                        root.maxMessageTextWidth = implicitWidth
+                        root.pendingMaxMessageTextWidth = Math.max(root.pendingMaxMessageTextWidth, implicitWidth)
+                        maxWidthCommitTimer.restart()
                     }
                 }
                 Component.onCompleted: {
                     if (isLastColumn && implicitWidth > root.maxMessageTextWidth) {
                         root.maxMessageTextWidth = implicitWidth
+                        root.pendingMaxMessageTextWidth = Math.max(root.pendingMaxMessageTextWidth, implicitWidth)
                     }
                 }
             }
