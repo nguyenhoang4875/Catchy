@@ -19,19 +19,20 @@ class SearchLog(QObject):
         self._previousSearchQuery = ""
         self._searchHistory = []
         self._maxHistorySize = 20
-        # Định nghĩa bảng màu cho highlight
-        self._colorPalette = [
-            'rgba(97, 165, 77, 0.6)',   # Green
-            'rgba(255, 193, 7, 0.6)',   # Yellow  
-            'rgba(220, 53, 69, 0.6)',   # Red
-            'rgba(13, 110, 253, 0.6)',  # Blue
-            'rgba(111, 66, 193, 0.6)',  # Purple
-            'rgba(255, 99, 132, 0.6)',  # Pink
-            'rgba(255, 159, 64, 0.6)',  # Orange
-            'rgba(75, 192, 192, 0.6)',  # Teal
-            'rgba(153, 102, 255, 0.6)', # Violet
-            'rgba(255, 205, 86, 0.6)'   # Light Yellow
+        # Định nghĩa bảng màu cho highlight (đậm/bão hòa hơn để hiện rõ trên nền trắng)
+        self._colorPaletteRgb = [
+            (46, 125, 50),    # Green
+            (249, 168, 37),   # Amber
+            (198, 40, 40),    # Red
+            (21, 101, 192),   # Blue
+            (106, 27, 154),   # Purple
+            (173, 20, 87),    # Pink
+            (230, 81, 0),     # Orange
+            (0, 105, 92),     # Teal
+            (69, 39, 160),    # Indigo
+            (158, 157, 36),   # Olive
         ]
+        self._highlightAlpha = 0.6
 
     @Property(QRegularExpression, notify=searchRegexChanged)
     def searchRegex(self):
@@ -128,5 +129,6 @@ class SearchLog(QObject):
         return ""
     
     def getColorForIndex(self, index):
-        """Lấy màu theo index, lặp lại nếu vượt quá số màu có sẵn"""
-        return self._colorPalette[index % len(self._colorPalette)]
+        """Lấy màu (translucent, dùng cho background highlight) theo index, lặp lại nếu vượt quá số màu có sẵn"""
+        r, g, b = self._colorPaletteRgb[index % len(self._colorPaletteRgb)]
+        return f'rgba({r}, {g}, {b}, {self._highlightAlpha})'

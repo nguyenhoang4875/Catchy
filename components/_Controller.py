@@ -1000,6 +1000,11 @@ class Controller(QObject):
     def getSearchHistoryHint(self, prefix):
         return self._searchLog.getSearchHint(prefix)
 
+    @Slot(int, result=str)
+    def getSearchWordColor(self, index):
+        # Same translucent color used for the result-row highlight background.
+        return self._searchLog.getColorForIndex(index)
+
     @Slot(str, result=str)
     def hightlightSearchResults(self, line):
         if not self._searchLog.searchWords or not self._searchLog.showSearchResults:

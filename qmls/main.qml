@@ -267,25 +267,58 @@ ApplicationWindow {
                 width: menuBar.width / 2
                 height: 25
                 property string historyHint: ""
+                property string coloredDisplayText: ""
+                property bool showColoredText: false
                 anchors.verticalCenter: menuBar.verticalCenter
                 anchors.horizontalCenter: menuBar.horizontalCenter
                 font.pixelSize: 14
                 font.family: muktaVaani.font.family
                 verticalAlignment: Text.AlignVCenter
-                color: ({
+                color: showColoredText ? "transparent" : ({
                     [Styler.ThemeMode.DARK]: "#ffffff",
                     [Styler.ThemeMode.LIGHT]: "#3A1D5E"
                 })[Styler.themeMode]
                 leftPadding: 10
                 clip: true
 
+                function escapeHtml(text) {
+                    return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+                }
+
+                // Highlights each "|"-separated word with a background color using
+                // controller.getSearchWordColor, matching the same word's highlight in the
+                // search results table. Empty/whitespace-only segments don't consume a color
+                // index, mirroring SearchLog's filtering of searchWords on the Python side.
+                function colorizeQuery(text) {
+                    if (!text) return ""
+                    var words = text.split("|")
+                    var colored = []
+                    var colorIndex = 0
+                    for (var i = 0; i < words.length; i++) {
+                        var word = words[i]
+                        if (word.trim().length === 0) {
+                            colored.push(escapeHtml(word))
+                        } else {
+                            var color = controller.getSearchWordColor(colorIndex)
+                            colored.push("<span style='background-color: " + color + "'>" + escapeHtml(word) + "</span>")
+                            colorIndex++
+                        }
+                    }
+                    return colored.join("|")
+                }
+
                 Component.onCompleted: {
                     searchInput.text = controller.getCurrentSearchQuery()
                     searchInput.historyHint = controller.getSearchHistoryHint(searchInput.text)
+                    if (searchInput.text.length > 0) {
+                        searchInput.coloredDisplayText = searchInput.colorizeQuery(searchInput.text)
+                        searchInput.showColoredText = true
+                    }
                 }
 
                 onTextEdited: {
                     searchInput.historyHint = controller.getSearchHistoryHint(searchInput.text)
+                    searchInput.showColoredText = false
                 }
 
                 Keys.onPressed: (event) => {
@@ -302,6 +335,8 @@ ApplicationWindow {
                         console.log("Enter pressed: " + searchInput.text)
                         controller.executeSearch(searchInput.text)
                         searchInput.historyHint = controller.getSearchHistoryHint(searchInput.text)
+                        searchInput.coloredDisplayText = searchInput.colorizeQuery(searchInput.text)
+                        searchInput.showColoredText = searchInput.text.length > 0
                         event.accepted = true
                     }
                 }
@@ -313,6 +348,23 @@ ApplicationWindow {
                     }
                 }
 
+                Text {
+                    id: coloredQueryText
+                    anchors.fill: searchInput
+                    leftPadding: searchInput.leftPadding
+                    verticalAlignment: Text.AlignVCenter
+                    textFormat: Text.RichText
+                    text: searchInput.coloredDisplayText
+                    color: ({
+                        [Styler.ThemeMode.DARK]: "#ffffff",
+                        [Styler.ThemeMode.LIGHT]: "#3A1D5E"
+                    })[Styler.themeMode]
+                    font.pixelSize: searchInput.font.pixelSize
+                    font.family: searchInput.font.family
+                    clip: true
+                    z: 0.4
+                    visible: searchInput.showColoredText && searchInput.text.length > 0
+                }
 
                 Text {
                     id: searchHint

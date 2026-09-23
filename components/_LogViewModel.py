@@ -228,6 +228,10 @@ def detect_format(file_path):
 ROLE_FILTER_COLOR = Qt.UserRole + 1
 ROLE_LEVEL_COLOR = Qt.UserRole + 2
 
+# Reserved key stashed on each entry dict caching (filter_version, color) for
+# _filter_color_for_entry — avoids re-running the regex scan on every scroll frame.
+_FILTER_COLOR_CACHE_KEY = "_filter_color_cache"
+
 class LogModel(QAbstractTableModel):
     ColumnLine          = 0
     ColumnDatetime      = 1
@@ -290,16 +294,26 @@ class LogModel(QAbstractTableModel):
         return self._level_color_for_entry(log_entry)
 
     def _filter_color_for_entry(self, log_entry, colors):
+        # TableView queries this role once per visible cell (row x column) on every
+        # scroll frame, so the regex scan below must be cached per-row, not redone
+        # each call - see _FILTER_COLOR_CACHE_KEY, invalidated via _filter_version.
+        cached = log_entry.get(_FILTER_COLOR_CACHE_KEY)
+        if cached is not None and cached[0] == self._filter_version:
+            return cached[1]
+
         process_name = log_entry.get(PROCESS_NAME) or ""
-        if not process_name:
-            return ""
-        for pat_str, compiled_re, color in self._compiled_colors:
-            if compiled_re is not None:
-                if compiled_re.search(process_name):
-                    return color
-            elif pat_str.lower() == process_name.lower():
-                return color
-        return ""
+        color = ""
+        if process_name:
+            for pat_str, compiled_re, c in self._compiled_colors:
+                if compiled_re is not None:
+                    if compiled_re.search(process_name):
+                        color = c
+                        break
+                elif pat_str.lower() == process_name.lower():
+                    color = c
+                    break
+        log_entry[_FILTER_COLOR_CACHE_KEY] = (self._filter_version, color)
+        return color
 
     def _level_color_for_entry(self, log_entry):
         return LOG_LEVEL_COLORS.get(log_entry.get(LOG_LEVEL, ""), "")
