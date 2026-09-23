@@ -61,6 +61,21 @@ Item {
         scrollTimer.restart()
     }
 
+    // Selects every column of a single row, replacing the current selection.
+    function selectRow(row) {
+        logView.selectionModel.select(filterProxyModel.index(row, 0), ItemSelectionModel.ClearAndSelect | ItemSelectionModel.Rows)
+    }
+
+    // Selects every column of all rows between startRow and endRow (inclusive), replacing the current selection.
+    function selectRowRange(startRow, endRow) {
+        var lo = Math.min(startRow, endRow)
+        var hi = Math.max(startRow, endRow)
+        logView.selectionModel.clearSelection()
+        for (var r = lo; r <= hi; r++) {
+            logView.selectionModel.select(filterProxyModel.index(r, 0), ItemSelectionModel.Select | ItemSelectionModel.Rows)
+        }
+    }
+
     function highlightLine(lineNum) {
         root.highlightLineNum = lineNum
         highlightTimer.lineToHighlight = lineNum
@@ -134,7 +149,7 @@ Item {
     Menu {
         id: optionMenu
         width: 120
-        height: 30
+        height: 60
         property int lineSelected: -1
         property string log: ""
         property bool isMarked: false
@@ -175,7 +190,7 @@ Item {
             id: makeBookmarkBtn
             width: parent.width
             height: 30
-            anchors.centerIn: parent
+            anchors.top: parent.top
             font.family: concertOne.font.family
             hoverEnabled: true
             contentItem: Text {
@@ -201,6 +216,36 @@ Item {
                 } else {
                  bookmark.addBookmark({line: optionMenu.lineSelected, log: optionMenu.log})
                 }
+                optionMenu.close()
+            }
+        }
+
+        Button {
+            id: copyLineBtn
+            width: parent.width
+            height: 30
+            anchors.top: makeBookmarkBtn.bottom
+            font.family: concertOne.font.family
+            hoverEnabled: true
+            contentItem: Text {
+                text: "Copy"
+                color: ({
+                    [Styler.ThemeMode.DARK]: copyLineBtn.hovered ? "#acf39999" : "#ffffff",
+                    [Styler.ThemeMode.LIGHT]: copyLineBtn.hovered ? "#FFC513" : "#FDB147"
+                })[Styler.themeMode]
+                font.pixelSize: 12
+                verticalAlignment: Text.AlignVCenter
+                horizontalAlignment: Text.AlignHCenter
+                font.bold: true
+            }
+            flat: true
+
+            background: Rectangle {
+                color: copyLineBtn.down ? "#adc8c7ca" : "transparent"
+                radius: 2
+            }
+            onClicked: {
+                logView.copySelectedCells()
                 optionMenu.close()
             }
         }
@@ -485,25 +530,25 @@ Item {
                     var cellIndex = filterProxyModel.index(row, column)
                     if (button === Qt.LeftButton) {
                         
-                        if (eventPoint.modifiers & Qt.ControlModifier) {
+                        if (point.modifiers & Qt.ControlModifier) {
                             // Ctrl+Click: Toggle cell selection for multi-column selection
                             if (logView.selectionModel.isSelected(cellIndex)) {
                                 logView.selectionModel.select(cellIndex, ItemSelectionModel.Deselect)
                             } else {
                                 logView.selectionModel.select(cellIndex, ItemSelectionModel.Select)
                             }
-                        } else if (eventPoint.modifiers & Qt.ShiftModifier) {
-                            // Shift+Click: Select range from current to clicked cell
+                        } else if (point.modifiers & Qt.ShiftModifier) {
+                            // Shift+Click: end line - selects every line between the anchor (start) line and this one.
+                            // Note: QML's QModelIndex value type has no "valid" property, so check row >= 0 instead.
                             var currentIndex = logView.selectionModel.currentIndex
-                            if (currentIndex.valid) {
-                                var range = logView.selectionModel.model.createSelection(currentIndex, cellIndex)
-                                logView.selectionModel.select(range, ItemSelectionModel.Select)
-                            } else {
-                                logView.selectionModel.setCurrentIndex(cellIndex, ItemSelectionModel.Select)
-                            }
+                            var anchorRow = currentIndex && currentIndex.row >= 0 ? currentIndex.row : row
+                            root.selectRowRange(anchorRow, row)
+                            // Remember this click as the anchor so a further Shift+Click extends from here
+                            logView.selectionModel.setCurrentIndex(cellIndex, ItemSelectionModel.Current)
                         } else {
-                            // Regular click: Select cell and show details
-                            logView.selectionModel.setCurrentIndex(cellIndex, ItemSelectionModel.ClearAndSelect)
+                            // Regular click: start line - selects this whole line and becomes the range anchor
+                            root.selectRow(row)
+                            logView.selectionModel.setCurrentIndex(cellIndex, ItemSelectionModel.Current)
                         }
                         
                         // Show log details and highlight line
@@ -520,6 +565,12 @@ Item {
                         } else {
                             root.highlightLineNum = lineNumber
                             controller.highlightLineNum = lineNumber
+                        }
+                        // Right-clicking outside the current selection selects just this line, so
+                        // "Copy" always acts on the line(s) the user actually meant to copy.
+                        if (!logView.selectionModel.isSelected(cellIndex)) {
+                            root.selectRow(row)
+                            logView.selectionModel.setCurrentIndex(cellIndex, ItemSelectionModel.Current)
                         }
                         let pos = mapToItem(logView, eventPoint.position.x, eventPoint.position.y)
                         optionMenu.openMenu(bookmarked, lineNumber, pos.x, pos.y)
