@@ -3,7 +3,7 @@ from PySide6.QtCore import QObject, Slot, QThread, Signal, Property, QTimer
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import QFileDialog
 from components._FilterLog import FilterLog
-from components._LogViewModel import LogModel, LINE_NUMBER
+from components._LogViewModel import LogModel, LINE_NUMBER, DATE_TIME
 from components._Worker import Worker
 from components._SearchLog import SearchLog
 from components._Configurations import Configurations
@@ -84,6 +84,9 @@ class Controller(QObject):
         self._isLoading         = False
         self._isSaving          = False
         self._saveProgressVal   = 0.0
+        self._openedFiles       = []    # basenames of all files merged into the current log table
+        self._pendingAppend     = False
+        self._loadQueue         = deque()   # (file_path, append) pairs waiting for the load thread
 
         self._logcatFilePath       = ""
         self._logcatFileQueue     = deque()
@@ -287,6 +290,11 @@ class Controller(QObject):
     def openedFileName(self, val):
         self._openedFileName = val
         self.openedFileNameChanged.emit()
+
+    @Property(list, notify=openedFileNameChanged)
+    def openedFiles(self):
+        """Full list of file names currently loaded/merged, for the hover tooltip."""
+        return list(self._openedFiles)
 
     @Property(bool, notify=isLoadingChanged)
     def isLoading(self):
@@ -646,31 +654,71 @@ class Controller(QObject):
             selected_file = file_dialog.selectedFiles()[0]
             self._loadFile(selected_file)
 
+    @Slot()
+    def addFileDialog(self):
+        """Open a second (or later) log file and merge it into the currently loaded log table."""
+        file_dialog = QFileDialog()
+        file_dialog.setNameFilter("All files (*.*);;Log files (*.log)")
+        if file_dialog.exec():
+            selected_file = file_dialog.selectedFiles()[0]
+            self._loadFile(selected_file, append=True)
+
     @Slot(str)
     def openFileByPath(self, file_path):
-        """Open a file by its path (used for drag-and-drop)."""
-        if file_path.startswith("file:///"):
-            file_path = file_path[8:]  # Remove file:/// prefix
-        file_path = os.path.normpath(file_path)
+        """Open a file by its path (used for drag-and-drop), replacing the current log table."""
+        file_path = self._normalizeDroppedPath(file_path)
         if os.path.isfile(file_path):
             self._loadFile(file_path)
 
-    def _loadFile(self, file_path):
+    @Slot(str)
+    def addFileByPath(self, file_path):
+        """Open a file by its path and merge it into the current log table (used for drag-and-drop)."""
+        file_path = self._normalizeDroppedPath(file_path)
+        if os.path.isfile(file_path):
+            self._loadFile(file_path, append=True)
+
+    @staticmethod
+    def _normalizeDroppedPath(file_path):
+        if file_path.startswith("file:///"):
+            file_path = file_path[8:]  # Remove file:/// prefix
+        return os.path.normpath(file_path)
+
+    def _loadFile(self, file_path, append=False):
+        if self._loadLogFileThread.isRunning():
+            # A load/save is already in flight — queue this one (needed when several
+            # files are dropped at once) instead of starting a second thread run.
+            self._loadQueue.append((file_path, append))
+            return
+        self._startLoadFile(file_path, append)
+
+    def _startLoadFile(self, file_path, append):
         self._loadCancelled = False
+        self._pendingAppend = append
         self.loadingFileName = os.path.basename(file_path)
         self.loadProgress = 0.0
         self.isLoading = True
         self.showLoadingScreen = True
-        self.logviewModel.updateData([])
-        self._nextLineNum = 1
-        self._trimmedOffset = 0
-        self.bookmark.clearAll()
+        if not append:
+            self.logviewModel.updateData([])
+            self._nextLineNum = 1
+            self._trimmedOffset = 0
+            self.bookmark.clearAll()
+            self._openedFiles = []
 
         self.worker = Worker(self._loadFileBatched, file_path)
         self.worker.batchLoaded.connect(self._onBatchLoaded)
         self.worker.moveToThread(self._loadLogFileThread)
         self.worker.taskCompleted.connect(self._onFileLoadComplete)
-        self._loadLogFileThread.started.connect(self.worker.run)
+        self._runOnLoadThread(self.worker)
+
+    def _runOnLoadThread(self, worker):
+        """Start worker.run() once the thread starts, dropping any stale connection
+        left over from a previous load/save so it can't re-fire and hijack progress."""
+        try:
+            self._loadLogFileThread.started.disconnect()
+        except (TypeError, RuntimeError):
+            pass
+        self._loadLogFileThread.started.connect(worker.run)
         self._loadLogFileThread.start()
 
     @Slot()
@@ -681,7 +729,10 @@ class Controller(QObject):
     def _loadFileBatched(self, file_path):
         """Worker task: load entire file in worker thread, emitting progress only."""
         colors = self.filterLog.colors()
-        self.logviewModel.setFilterColors(colors)
+        # notify=False: the upcoming updateData() full-model reset repaints everything anyway —
+        # emitting dataChanged here too would queue a huge repaint of already-shown rows (merge
+        # case) from this worker thread and starve the UI thread's progress updates.
+        self.logviewModel.setFilterColors(colors, notify=False)
 
         def on_progress(pct):
             # Cross-thread signal carries only a float — no data copy overhead.
@@ -703,16 +754,44 @@ class Controller(QObject):
         self._loadLogFileThread.quit()
         self._loadLogFileThread.wait()
         # One beginResetModel/endResetModel is far faster than N×addRows.
-        self.logviewModel.updateData(all_entries)
-        self._nextLineNum = len(all_entries) + 1
+        if self._pendingAppend:
+            merged_entries = self._mergeLogEntries(self.logviewModel._log_data, all_entries)
+            self.logviewModel.updateData(merged_entries)
+            self._nextLineNum = len(merged_entries) + 1
+            self._openedFiles.append(self._loadingFileName)
+            self.openedFileName = " + ".join(self._openedFiles)
+            self.toast.show(TOAST.INFO, f"Merged {len(all_entries):,} records from {self._loadingFileName}")
+        else:
+            self.logviewModel.updateData(all_entries)
+            self._nextLineNum = len(all_entries) + 1
+            self._openedFiles = [self._loadingFileName]
+            self.openedFileName = self._loadingFileName
+            self.toast.show(TOAST.INFO, f"Loaded {len(all_entries):,} records")
         self._trimmedOffset = 0
         self.loadProgress = 1.0
         self.isLoading = False
         self.showLoadingScreen = False
         self.logViewReady = True
-        self.openedFileName = self._loadingFileName
         self.loadLogFileCompleted.emit()
-        self.toast.show(TOAST.INFO, f"Loaded {len(all_entries):,} records")
+
+        if self._loadQueue:
+            next_path, next_append = self._loadQueue.popleft()
+            self._startLoadFile(next_path, next_append)
+
+    @staticmethod
+    def _mergeLogEntries(existing_entries, new_entries):
+        """Merge new_entries into existing_entries ordered by timestamp, then renumber lines.
+
+        Sorting is a stable string comparison of the raw datetime field, which works as
+        long as the merged files share the same timestamp format (typical for logs coming
+        from the same device/app). Entries with equal/unparsable timestamps keep their
+        original relative order.
+        """
+        combined = list(existing_entries) + list(new_entries)
+        combined.sort(key=lambda entry: entry.get(DATE_TIME, "") or "")
+        for i, entry in enumerate(combined, start=1):
+            entry[LINE_NUMBER] = i
+        return combined
 
     @Slot()
     def saveLogFile(self):
@@ -734,8 +813,7 @@ class Controller(QObject):
             self.worker = Worker(self._writeLogToFile, selected_file)
             self.worker.moveToThread(self._loadLogFileThread)
             self.worker.taskCompleted.connect(self.onLogFileSaved)
-            self._loadLogFileThread.started.connect(self.worker.run)
-            self._loadLogFileThread.start()
+            self._runOnLoadThread(self.worker)
 
     def _writeLogToFile(self, file_path):
         """Write the current log data to a file in chunks for performance."""

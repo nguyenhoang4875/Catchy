@@ -232,8 +232,14 @@ class LogModel(QAbstractTableModel):
     def setController(self, controller):
         self._controller = controller
 
-    def setFilterColors(self, colors):
-        """Update the filter-color mapping and invalidate the lazy cache."""
+    def setFilterColors(self, colors, notify=True):
+        """Update the filter-color mapping and invalidate the lazy cache.
+
+        notify=False skips the full-table dataChanged emit — used while a background
+        load is still in progress (worker thread), where a pending updateData() reset
+        will repaint everything anyway; emitting here too just queues a huge, redundant
+        repaint of the already-displayed rows and starves the UI thread's progress updates.
+        """
         self._colors = colors
         # Pre-compile filter regex patterns for fast color lookup.
         self._compiled_colors = []
@@ -245,7 +251,7 @@ class LogModel(QAbstractTableModel):
                 compiled = None
             self._compiled_colors.append((pat_str, compiled, color))
         self._filter_version += 1
-        if self._log_data:
+        if notify and self._log_data:
             top_left = self.index(0, 0)
             bottom_right = self.index(self.rowCount() - 1, self.columnCount() - 1)
             self.dataChanged.emit(top_left, bottom_right, [Qt.DecorationRole, ROLE_FILTER_COLOR, ROLE_LEVEL_COLOR])
@@ -375,7 +381,9 @@ class LogModel(QAbstractTableModel):
         _append = all_entries.append
         line_count = 1
         bytes_read = 0
-        _progress_interval = 5000  # report progress every 5K lines for smooth updates
+        _last_reported_bucket = -1
+        _PROGRESS_BUCKETS = 200  # ~0.5% resolution: frequent enough to feel smooth without
+                                  # flooding the UI thread with redundant signal emits
 
         try:
             with open(file_path, 'rb', buffering=IO_BUFFER_SIZE) as fh_bin:
@@ -396,12 +404,15 @@ class LogModel(QAbstractTableModel):
                                 line_count += 1
                         break
 
+                    chunk_start_bytes = bytes_read
                     bytes_read += len(chunk)
                     data = remainder + chunk
                     lines = data.split(b'\n')
                     remainder = lines.pop()  # last element is incomplete line
 
+                    consumed_in_chunk = 0
                     for raw_bytes in lines:
+                        consumed_in_chunk += len(raw_bytes) + 1  # +1 for the stripped '\n'
                         line_str = raw_bytes.decode('utf-8', errors='replace').rstrip('\r')
                         entry = parse_fn(line_str)
                         if entry is not None:
@@ -409,8 +420,17 @@ class LogModel(QAbstractTableModel):
                             _append(entry)
                             line_count += 1
 
-                        if progress_callback and line_count % _progress_interval == 0:
-                            progress_callback(min(bytes_read / file_size, 0.99) if file_size else 0.0)
+                        # Track progress by bytes actually consumed so far (not just line count),
+                        # so updates land evenly across the file instead of in big end-of-chunk jumps.
+                        if progress_callback and file_size:
+                            pct = min((chunk_start_bytes + consumed_in_chunk) / file_size, 0.99)
+                            bucket = int(pct * _PROGRESS_BUCKETS)
+                            if bucket != _last_reported_bucket:
+                                _last_reported_bucket = bucket
+                                progress_callback(pct)
+
+                    if progress_callback and not file_size:
+                        progress_callback(0.0)
 
             if progress_callback:
                 progress_callback(1.0)

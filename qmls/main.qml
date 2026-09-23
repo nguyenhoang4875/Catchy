@@ -33,6 +33,7 @@ ApplicationWindow {
             anchors.fill: root
         }
 
+
         Item {
             id: menuBar
             height: 30
@@ -86,6 +87,26 @@ ApplicationWindow {
 
                         onClicked: {
                             controller.openFileDialog()
+                            fileMenu.close()
+                        }
+                    }
+                    Button {
+                        width: parent.width
+                        height: 26
+
+                        Text {
+                            width: contentWidth
+                            height: parent.height
+                            text: "Add file (merge)"
+                            anchors.left: parent.left
+                            anchors.leftMargin: parent.width / 3
+                            color: "#ECEDF5"
+                            verticalAlignment: Text.AlignVCenter
+                            font.family: muktaVaani.font.family
+                        }
+
+                        onClicked: {
+                            controller.addFileDialog()
                             fileMenu.close()
                         }
                     }
@@ -929,9 +950,21 @@ ApplicationWindow {
             anchors.fill: parent
             keys: ["text/uri-list"]
 
+            // Once a log is already loaded, the drop position picks the action: top half
+            // opens fresh (replaces it), bottom half merges into the current table.
             onDropped: (drop) => {
-                if (drop.hasUrls && drop.urls.length > 0) {
+                if (!drop.hasUrls || drop.urls.length === 0) return
+
+                var mergeMode = controller.logViewReady && drop.y >= (height / 2)
+                if (mergeMode) {
+                    for (var i = 0; i < drop.urls.length; i++) {
+                        controller.addFileByPath(drop.urls[i].toString())
+                    }
+                } else {
                     controller.openFileByPath(drop.urls[0].toString())
+                    for (var j = 1; j < drop.urls.length; j++) {
+                        controller.addFileByPath(drop.urls[j].toString())
+                    }
                 }
             }
 
@@ -942,12 +975,52 @@ ApplicationWindow {
                 visible: fileDropArea.containsDrag
                 z: 999
 
+                // Nothing loaded yet — a single drop zone, dropping always opens.
                 Text {
                     anchors.centerIn: parent
+                    visible: !controller.logViewReady
                     text: "Drop file to open"
                     color: "#ffffff"
                     font.pixelSize: 24
                     font.family: muktaVaani.font.family
+                }
+
+                // A log is already open — split the hint into merge vs replace zones.
+                Column {
+                    anchors.fill: parent
+                    visible: controller.logViewReady
+
+                    Rectangle {
+                        width: parent.width
+                        height: parent.height / 2
+                        color: "#404C9AE0"
+                        border.color: "#4C9AE0"
+                        border.width: 2
+
+                        Text {
+                            anchors.centerIn: parent
+                            text: "Drop here to OPEN as new (replaces current log)"
+                            color: "#ffffff"
+                            font.pixelSize: 20
+                            font.family: muktaVaani.font.family
+                        }
+                    }
+
+                    Rectangle {
+                        width: parent.width
+                        height: parent.height / 2
+                        color: "#4046C46F"
+                        border.color: "#46C46F"
+                        border.width: 2
+
+                        Text {
+                            anchors.centerIn: parent
+                            text: "Drop here to MERGE into current log"
+                            color: "#ffffff"
+                            font.pixelSize: 20
+                            font.family: muktaVaani.font.family
+                        }
+                    }
                 }
             }
         }
