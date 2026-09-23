@@ -22,9 +22,6 @@ class Toast(QObject):
     showMsg = Signal(int, str)
     def __init__(self, parent=None):
         super().__init__(parent)
-        # self.ERROR     = 2
-        # self.WARNING   = 1
-        # self.INFO      = 0
     
     def show(self, type, message):
         self.showMsg.emit(type, message)

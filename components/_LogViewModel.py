@@ -1,7 +1,7 @@
 from PySide6.QtCore import Qt, QAbstractTableModel, QModelIndex
 import re
 import os
-from components._Defines import BATCH_SIZE, IO_BUFFER_SIZE
+from components._Defines import IO_BUFFER_SIZE
 
 LINE_NUMBER     = "line_number"
 DATE_TIME       = "datetime"
@@ -19,8 +19,6 @@ COL_TID         = "TID"
 COL_LOGLEVEL    = "Level"
 COL_TAG         = "Tag"
 COL_MESSAGE     = "Message"
-
-LINE_NUMBER     = "line_number"
 
 LOG_LEVEL_COLORS = {
     "V": "#4E7D96 ",
@@ -86,24 +84,6 @@ def _parse_iso_fast(line):
     }
 
 
-def _skip_spaces(s, pos):
-    """Advance pos past all space characters in s."""
-    n = len(s)
-    while pos < n and s[pos] == ' ':
-        pos += 1
-    return pos
-
-
-def _read_digits(s, pos):
-    """Return (value_str, end_pos) for a run of digits starting at pos.
-    Returns (None, pos) when no digits are found.
-    """
-    n = len(s)
-    start = pos
-    while pos < n and s[pos].isdigit():
-        pos += 1
-    return (s[start:pos], pos) if pos > start else (None, start)
-
 def _parse_compact_fast(line):
     """Manual parser for bracketed compact format."""
     # Format: [DateTime] [PID] [TID] [Level] [Tag] [Message]
@@ -135,9 +115,6 @@ def _parse_compact_fast(line):
 
 def _parse_logcat_regex(line):
     """Regex-based parser for Android logcat threadtime format.
-
-    Equivalent to _parse_logcat_fast but uses the pre-compiled logcat_pattern.
-    Useful for correctness comparison / unit-testing against the fast parser.
 
     Supports both date prefixes:
       MM-DD HH:MM:SS.mmm  PID  TID L TAG: message
@@ -185,9 +162,6 @@ class TagInternPool:
             return existing
         self._pool[tag] = tag
         return tag
-
-    def clear(self):
-        self._pool.clear()
 
 
 _tag_pool = TagInternPool()
@@ -451,13 +425,6 @@ class LogModel(QAbstractTableModel):
                 pass
 
         return all_entries
-
-    def processLineData(self, lineData, colors):
-        log_entry = self._parse_line(lineData)
-        if log_entry:
-            return (True, log_entry)
-        else:
-            return (False, None)
 
     def processLineDataLogcat(self, lineData, colors):
         match = logcat_pattern.match(lineData)

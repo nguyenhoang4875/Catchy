@@ -7,8 +7,6 @@ class Configurations(QObject):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._configs = {}
-        pass
-    pass
 
     def loadLastSavedConfig(self):
         savedConfigPath = os.path.join(ROOT_FOLDER, 'savedConfig.json')
@@ -17,7 +15,6 @@ class Configurations(QObject):
                 self._configs = json.load(file)
         except Exception as e:
             print("Error loading saved configuration: ", e)
-        pass
 
     def getConfigs(self):
         return self._configs
@@ -27,4 +24,3 @@ class Configurations(QObject):
         savedConfigPath = os.path.join(ROOT_FOLDER, 'savedConfig.json')
         with open(savedConfigPath, 'w', encoding='utf-8') as file:
             json.dump(self._configs, file, indent=4)
-        pass

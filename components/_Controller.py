@@ -1,6 +1,6 @@
 # This Python file uses the following encoding: utf-8
-from PySide6.QtCore import QObject, Slot, QThread, Signal, Property, QModelIndex, QMimeData, QTimer
-from PySide6.QtGui import QGuiApplication, QClipboard, QColor
+from PySide6.QtCore import QObject, Slot, QThread, Signal, Property, QTimer
+from PySide6.QtGui import QColor
 from PySide6.QtWidgets import QFileDialog
 from components._FilterLog import FilterLog
 from components._LogViewModel import LogModel, LINE_NUMBER
@@ -122,8 +122,7 @@ class Controller(QObject):
 
         if self._logSource == SOURCE_LOGCAT:
             self.startLogcat()
-        pass
-    
+
     def cleanup(self):
         # Code to execute when the instance is destroyed
         print("Controller instance is being destroyed")
@@ -776,58 +775,6 @@ class Controller(QObject):
         else:
             self.toast.show(TOAST.ERROR, "Failed to save log file")
 
-    def loadLogFile(self, file_path):
-        """Load a file synchronously (used by streaming initial load)."""
-        print("loadLogFile: ", file_path)
-        colors = self.filterLog.colors()
-        self.logviewModel.setFilterColors(colors)
-        return self.logviewModel.loadLogFile(file_path, colors)
-
-    @Slot(list)
-    def onLogFileLoaded(self, result):
-        self._loadLogFileThread.quit()
-        self._loadLogFileThread.wait()
-        parsed_log = result
-        self._nextLineNum = len(parsed_log) + 1
-        self._trimmedOffset = 0
-        self.logviewModel.updateData(parsed_log)
-        self.logViewReady = True
-        self.loadLogFileCompleted.emit()
-        
-    def streamFile(self, file_path, process_fn=None, stop_flag_fn=None, target_buffer=None):
-        print("streamFile: ", file_path)
-        try:
-            with open(file_path, 'r', encoding='utf-8') as file:
-                file.seek(0, os.SEEK_END)
-                while stop_flag_fn():
-                    lines = []
-                    while True:
-                        new_line = file.readline()
-                        if new_line:
-                            lines.append(new_line)
-                        else:
-                            break
-                    if lines:
-                        colors = self.filterLog.colors()
-                        for line in lines:
-                            result = process_fn(line, colors)
-                            if result[0]:
-                                target_buffer.append(result[1])
-                    else:
-                        time.sleep(0.1)
-        except Exception as e:
-            print(f"Error while watching log file: {e}")
-
-    def addLineLog(self, line):
-        """Legacy single-line insert (kept for compatibility)."""
-        (isSuccess, log_entry) = self.logviewModel.processLineData(line, self.filterLog.colors())
-        if isSuccess:
-            log_entry[LINE_NUMBER] = self._nextLineNum
-            self._nextLineNum += 1
-            self.logviewModel.addRow(log_entry)
-        else:
-            print(f"Error processing line: {line}")
-
     # FILER **********************************************************
     @Slot()
     def openFilterDialog(self):
@@ -839,7 +786,6 @@ class Controller(QObject):
             self._originalFilters = self.filterLog.originalFilters()
             self._configs.saveConfig("filter", {"path": selected_file})
             self.refreshColorFilters()
-            pass
 
     @Slot()
     def applyFilterChanges(self):
@@ -877,7 +823,6 @@ class Controller(QObject):
         # update color in filter log
         self.filterLog.updateColorFilter(id, color)
         self.refreshColorFilters()
-        pass
 
     def processUpdateColorOnTable(self, id, color):
         # Recompute row colors from all active filters to keep regex behavior consistent.
@@ -905,7 +850,6 @@ class Controller(QObject):
         tag   = filter["tag"]
         color = filter["color"]
         self.logviewModel.setColorForProcessName(tag, color)
-        pass
 
     @Slot(str, str, str)
     @Slot(str, str, QColor)
@@ -945,7 +889,6 @@ class Controller(QObject):
         
         self.filterLog.removeFilter(id)
         self.logviewModel.resetColorForProcessName(tag)
-        pass
     # SEARCH **********************************************************
     def _persistSearchState(self):
         self._configs.saveConfig("search", {
@@ -959,7 +902,6 @@ class Controller(QObject):
         print("setSearchRegex: ", pattern)
         self._searchLog.searchRegex = pattern
         self._persistSearchState()
-        pass
 
     @Slot(str)
     def executeSearch(self, pattern):
@@ -986,7 +928,6 @@ class Controller(QObject):
     def setShowSearchResults(self, val):
         print("setShowSearchResults: ", val)
         self._searchLog.showSearchResults = val
-        pass
 
     @Slot(result=str)
     def getCurrentSearchQuery(self):
@@ -1022,10 +963,6 @@ class Controller(QObject):
 
         return result_line
 
-    def replace_with_span_color(self, match, color):
-        """Helper function để tạo span với màu cụ thể"""
-        return f"<span style='background-color: {color}'>{match.group(0)}</span>"
-    
     @Slot(str)
     def copyToClipboard(self, strCopy):
         pyperclip.copy(strCopy)

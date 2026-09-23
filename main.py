@@ -3,7 +3,6 @@
 import sys
 from pathlib import Path
 
-from PySide6.QtGui import QGuiApplication, QClipboard
 from PySide6.QtGui import QIcon
 from PySide6.QtQml import QQmlApplicationEngine, qmlRegisterType
 from PySide6.QtWidgets import QApplication

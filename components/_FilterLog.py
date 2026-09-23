@@ -15,7 +15,6 @@ class FilterLog(QObject):
         self._colors                    = {}
         self._filterCriteria            = []
         self._maxID                     = 0
-        pass
 
     def create(self, jsonPath):
         self.loadFilterFromJson(jsonPath)
