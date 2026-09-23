@@ -551,3 +551,12 @@ class LogModel(QAbstractTableModel):
     def reapplyProcessColors(self, colors):
         """Update filter colors and trigger repaint. Colors are computed lazily in data()."""
         self.setFilterColors(colors)
+
+    def notifyRangeChanged(self, first_row, last_row):
+        """Emit dataChanged for a bounded row slice — lets callers repaint in chunks
+        (yielding to the event loop between calls) instead of one giant emit."""
+        if last_row <= first_row:
+            return
+        top_left = self.index(first_row, 0)
+        bottom_right = self.index(last_row - 1, self.columnCount() - 1)
+        self.dataChanged.emit(top_left, bottom_right, [Qt.DecorationRole, ROLE_FILTER_COLOR, ROLE_LEVEL_COLOR])

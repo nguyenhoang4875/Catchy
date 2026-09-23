@@ -45,6 +45,8 @@ class Controller(QObject):
     isSavingChanged             = Signal()
     saveProgressChanged         = Signal()
     openedFileNameChanged       = Signal()
+    isApplyingFilterChanged     = Signal()
+    filterApplyProgressChanged  = Signal()
     def __init__(self, parent=None):
         super().__init__(parent)
         self.create()
@@ -84,6 +86,8 @@ class Controller(QObject):
         self._isLoading         = False
         self._isSaving          = False
         self._saveProgressVal   = 0.0
+        self._isApplyingFilter    = False
+        self._filterApplyProgress = 0.0
         self._openedFiles       = []    # basenames of all files merged into the current log table
         self._pendingAppend     = False
         self._loadQueue         = deque()   # (file_path, append) pairs waiting for the load thread
@@ -322,6 +326,24 @@ class Controller(QObject):
     def saveProgress(self, val):
         self._saveProgressVal = val
         self.saveProgressChanged.emit()
+
+    @Property(bool, notify=isApplyingFilterChanged)
+    def isApplyingFilter(self):
+        return self._isApplyingFilter
+
+    @isApplyingFilter.setter
+    def isApplyingFilter(self, val):
+        self._isApplyingFilter = val
+        self.isApplyingFilterChanged.emit()
+
+    @Property(float, notify=filterApplyProgressChanged)
+    def filterApplyProgress(self):
+        return self._filterApplyProgress
+
+    @filterApplyProgress.setter
+    def filterApplyProgress(self, val):
+        self._filterApplyProgress = val
+        self.filterApplyProgressChanged.emit()
 
     def _resolveScrcpyExecutable(self):
         candidate_paths = [
@@ -907,13 +929,39 @@ class Controller(QObject):
         self.refreshColorFilters()
 
     def refreshColorFilters(self):
+        """Recompute colors then repaint the table in row chunks (via QTimer) so large
+        logs don't block the UI thread and the user sees progress instead of a freeze."""
         colors = self.filterLog.colors()
-        self.logviewModel.reapplyProcessColors(colors)
+        self.logviewModel.setFilterColors(colors, notify=False)
+        self._applyColorsChunked()
+
+    def _applyColorsChunked(self):
+        total = self.logviewModel.rowCount()
+        if total == 0:
+            self.isApplyingFilter = False
+            self.filterApplyProgress = 1.0
+            return
+        self.isApplyingFilter = True
+        self.filterApplyProgress = 0.0
+        CHUNK_ROWS = 2000
+
+        def step(start):
+            end = min(start + CHUNK_ROWS, total)
+            self.logviewModel.notifyRangeChanged(start, end)
+            self.filterApplyProgress = end / total
+            if end < total:
+                QTimer.singleShot(0, lambda: step(end))
+            else:
+                self.isApplyingFilter = False
+
+        step(0)
 
     @Slot(int,bool)
     def enableFilter(self, id, enabled):
-        self.filterLog.enableFilter(id, enabled)
-        self.refreshColorFilters()
+        self._filterWorker = Worker(self.filterLog.enableFilter, id, enabled)
+        self._filterWorker.moveToThread(self._filterThread)
+        self._filterWorker.taskCompleted.connect(self._onFilterOperationDone)
+        self._runOnFilterThread(self._filterWorker)
 
     def processEnableFilterOnTable(self, id):
         filter = None
@@ -929,29 +977,34 @@ class Controller(QObject):
         color = filter["color"]
         self.logviewModel.setColorForProcessName(tag, color)
 
-    @Slot(str, str, str)
-    @Slot(str, str, QColor)
-    def addFilter(self, tag, pid, color):
+    def _runOnFilterThread(self, worker):
+        """Start worker.run() once the thread starts, dropping any stale connection
+        left over from a previous filter op so it can't re-fire alongside this one."""
         if self._filterThread.isRunning():
             self._filterThread.quit()
             self._filterThread.wait()
+        try:
+            self._filterThread.started.disconnect()
+        except (TypeError, RuntimeError):
+            pass
+        self._filterThread.started.connect(worker.run)
+        self._filterThread.start()
+
+    @Slot(str, str, str)
+    @Slot(str, str, QColor)
+    def addFilter(self, tag, pid, color):
         self._filterWorker = Worker(self.filterLog.addFilter, tag, pid, color)
         self._filterWorker.moveToThread(self._filterThread)
         self._filterWorker.taskCompleted.connect(self._onFilterOperationDone)
-        self._filterThread.started.connect(self._filterWorker.run)
-        self._filterThread.start()
+        self._runOnFilterThread(self._filterWorker)
 
     @Slot(int, str, str, bool, str)
     @Slot(int, str, str, bool, QColor)
     def updateFilter(self, id, tag, pid, enabled, color):
-        if self._filterThread.isRunning():
-            self._filterThread.quit()
-            self._filterThread.wait()
         self._filterWorker = Worker(self.filterLog.updateFilter, id, tag, pid, enabled, color)
         self._filterWorker.moveToThread(self._filterThread)
         self._filterWorker.taskCompleted.connect(self._onFilterOperationDone)
-        self._filterThread.started.connect(self._filterWorker.run)
-        self._filterThread.start()
+        self._runOnFilterThread(self._filterWorker)
 
     def _onFilterOperationDone(self, result):
         self._filterThread.quit()

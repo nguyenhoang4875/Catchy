@@ -12,6 +12,8 @@ Item {
     property bool isLoading: typeof controller !== "undefined" ? controller.isLoading : false
     property bool isSaving: typeof controller !== "undefined" ? controller.isSaving : false
     property real saveProgressVal: typeof controller !== "undefined" ? controller.saveProgress : 0.0
+    property bool isApplyingFilter: typeof controller !== "undefined" ? controller.isApplyingFilter : false
+    property real filterApplyProgressVal: typeof controller !== "undefined" ? controller.filterApplyProgress : 0.0
 
     onStart: {
         root.visible = true
@@ -37,7 +39,7 @@ Item {
         width: 120
         height: 120
         z: 1001
-        visible: !root.isLoading && !root.isSaving
+        visible: !root.isLoading && !root.isSaving && !root.isApplyingFilter
     }
 
     AnimatedImage {
@@ -50,21 +52,21 @@ Item {
         width: 160
         height: 160
         z: 1001
-        visible: !root.isLoading && !root.isSaving
+        visible: !root.isLoading && !root.isSaving && !root.isApplyingFilter
     }
 
-    // Progress panel shown during file loading or saving
+    // Progress panel shown during file loading, saving, or applying a tag filter change
     Column {
         id: progressPanel
         anchors.centerIn: parent
         spacing: 12
         z: 1001
-        visible: root.isLoading || root.isSaving
+        visible: root.isLoading || root.isSaving || root.isApplyingFilter
 
         Text {
             id: progressTitle
             anchors.horizontalCenter: parent.horizontalCenter
-            text: root.isSaving ? "Saving..." : ("Loading: " + root.fileName)
+            text: root.isSaving ? "Saving..." : (root.isApplyingFilter ? "Applying filter..." : ("Loading: " + root.fileName))
             color: "#ECEDF5"
             font.pixelSize: 16
             font.bold: true
@@ -76,7 +78,7 @@ Item {
             height: 18
             from: 0.0
             to: 1.0
-            value: root.isSaving ? root.saveProgressVal : root.progress
+            value: root.isSaving ? root.saveProgressVal : (root.isApplyingFilter ? root.filterApplyProgressVal : root.progress)
             anchors.horizontalCenter: parent.horizontalCenter
 
             background: Rectangle {
@@ -101,7 +103,7 @@ Item {
         Text {
             id: progressPercent
             anchors.horizontalCenter: parent.horizontalCenter
-            text: Math.round((root.isSaving ? root.saveProgressVal : root.progress) * 100) + "%"
+            text: Math.round((root.isSaving ? root.saveProgressVal : (root.isApplyingFilter ? root.filterApplyProgressVal : root.progress)) * 100) + "%"
             color: "#CCCCCC"
             font.pixelSize: 14
         }
