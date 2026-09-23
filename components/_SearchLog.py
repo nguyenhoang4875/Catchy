@@ -18,7 +18,7 @@ class SearchLog(QObject):
         self._showSearchResults = False
         self._previousSearchQuery = ""
         self._searchHistory = []
-        self._maxHistorySize = 20
+        self._maxHistorySize = 30
         # Định nghĩa bảng màu cho highlight (đậm/bão hòa hơn để hiện rõ trên nền trắng)
         self._colorPaletteRgb = [
             (46, 125, 50),    # Green

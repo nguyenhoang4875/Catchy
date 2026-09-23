@@ -269,6 +269,7 @@ ApplicationWindow {
                 property string historyHint: ""
                 property string coloredDisplayText: ""
                 property bool showColoredText: false
+                property var filteredHistoryModel: []
                 anchors.verticalCenter: menuBar.verticalCenter
                 anchors.horizontalCenter: menuBar.horizontalCenter
                 font.pixelSize: 14
@@ -307,9 +308,29 @@ ApplicationWindow {
                     return colored.join("|")
                 }
 
+                // Keeps only history entries that contain the current query anywhere, so the
+                // popup narrows down as the user types (case-insensitive substring match).
+                function updateFilteredHistory() {
+                    var all = searchLog.searchHistory
+                    var text = searchInput.text
+                    if (!text) {
+                        searchInput.filteredHistoryModel = all
+                        return
+                    }
+                    var lower = text.toLowerCase()
+                    searchInput.filteredHistoryModel = all.filter(function(item) {
+                        return item.toLowerCase().includes(lower)
+                    })
+                }
+
+                onFilteredHistoryModelChanged: {
+                    historyListView.currentIndex = filteredHistoryModel.length > 0 ? 0 : -1
+                }
+
                 Component.onCompleted: {
                     searchInput.text = controller.getCurrentSearchQuery()
                     searchInput.historyHint = controller.getSearchHistoryHint(searchInput.text)
+                    searchInput.updateFilteredHistory()
                     if (searchInput.text.length > 0) {
                         searchInput.coloredDisplayText = searchInput.colorizeQuery(searchInput.text)
                         searchInput.showColoredText = true
@@ -319,9 +340,38 @@ ApplicationWindow {
                 onTextEdited: {
                     searchInput.historyHint = controller.getSearchHistoryHint(searchInput.text)
                     searchInput.showColoredText = false
+                    searchInput.updateFilteredHistory()
+                    if (searchHistoryPopup.visible && searchInput.filteredHistoryModel.length === 0) {
+                        searchHistoryPopup.close()
+                    }
                 }
 
                 Keys.onPressed: (event) => {
+                    if (event.key === Qt.Key_Space && (event.modifiers & Qt.ControlModifier)) {
+                        searchInput.updateFilteredHistory()
+                        if (searchInput.filteredHistoryModel.length > 0) {
+                            searchHistoryPopup.open()
+                        }
+                        event.accepted = true
+                        return
+                    }
+
+                    if (searchHistoryPopup.visible && (event.key === Qt.Key_Down || event.key === Qt.Key_Up)) {
+                        if (historyListView.count > 0) {
+                            var step = event.key === Qt.Key_Down ? 1 : -1
+                            historyListView.currentIndex = (historyListView.currentIndex + step + historyListView.count) % historyListView.count
+                            historyListView.positionViewAtIndex(historyListView.currentIndex, ListView.Contain)
+                        }
+                        event.accepted = true
+                        return
+                    }
+
+                    if (event.key === Qt.Key_Escape && searchHistoryPopup.visible) {
+                        searchHistoryPopup.close()
+                        event.accepted = true
+                        return
+                    }
+
                     if (event.key === Qt.Key_Tab) {
                         if (searchInput.historyHint !== "" && searchInput.historyHint !== searchInput.text) {
                             searchInput.text = searchInput.historyHint
@@ -332,6 +382,17 @@ ApplicationWindow {
                     }
 
                     if (event.key === Qt.Key_Return) {
+                        if (searchHistoryPopup.visible && historyListView.currentIndex >= 0) {
+                            var picked = searchInput.filteredHistoryModel[historyListView.currentIndex]
+                            searchInput.text = picked
+                            searchInput.cursorPosition = searchInput.text.length
+                            searchInput.historyHint = controller.getSearchHistoryHint(searchInput.text)
+                            searchInput.showColoredText = false
+                            searchHistoryPopup.close()
+                            event.accepted = true
+                            return
+                        }
+
                         console.log("Enter pressed: " + searchInput.text)
                         controller.executeSearch(searchInput.text)
                         searchInput.historyHint = controller.getSearchHistoryHint(searchInput.text)
@@ -345,6 +406,51 @@ ApplicationWindow {
                     target: searchLog
                     function onSearchHistoryChanged() {
                         searchInput.historyHint = controller.getSearchHistoryHint(searchInput.text)
+                        searchInput.updateFilteredHistory()
+                    }
+                }
+
+                // Shown on Ctrl+Space to pick a previous search query from searchLog.searchHistory.
+                Popup {
+                    id: searchHistoryPopup
+                    y: searchInput.height + 4
+                    width: searchInput.width
+                    height: Math.min(200, historyListView.contentHeight + topPadding + bottomPadding)
+                    padding: 4
+                    closePolicy: Popup.CloseOnPressOutside | Popup.CloseOnEscape
+
+                    background: Rectangle {
+                        color: ({
+                            [Styler.ThemeMode.DARK]: "#3a3a3a",
+                            [Styler.ThemeMode.LIGHT]: "#ffffff"
+                        })[Styler.themeMode]
+                        border.width: 1
+                        border.color: ({
+                            [Styler.ThemeMode.DARK]: "#595959",
+                            [Styler.ThemeMode.LIGHT]: "#6a6087"
+                        })[Styler.themeMode]
+                        radius: 4
+                    }
+
+                    contentItem: ListView {
+                        id: historyListView
+                        implicitHeight: contentHeight
+                        clip: true
+                        model: searchInput.filteredHistoryModel
+                        delegate: ItemDelegate {
+                            width: historyListView.width
+                            text: modelData
+                            highlighted: ListView.isCurrentItem
+                            onClicked: {
+                                historyListView.currentIndex = index
+                                searchInput.text = modelData
+                                searchInput.cursorPosition = searchInput.text.length
+                                searchInput.historyHint = controller.getSearchHistoryHint(searchInput.text)
+                                searchInput.showColoredText = false
+                                searchHistoryPopup.close()
+                                searchInput.forceActiveFocus()
+                            }
+                        }
                     }
                 }
 
