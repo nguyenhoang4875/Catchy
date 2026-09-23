@@ -61,6 +61,12 @@ Item {
         scrollTimer.restart()
     }
 
+    // Applies alpha to a filter color so row text stays legible over the tinted background.
+    function filterBgColor(colorStr, alpha) {
+        var c = Qt.color(colorStr)
+        return Qt.rgba(c.r, c.g, c.b, alpha)
+    }
+
     // Selects every column of a single row, replacing the current selection.
     function selectRow(row) {
         logView.selectionModel.select(filterProxyModel.index(row, 0), ItemSelectionModel.ClearAndSelect | ItemSelectionModel.Rows)
@@ -592,7 +598,7 @@ Item {
                 anchors.fill: parent
                 horizontalAlignment: isLastColumn ? Text.AlignLeft : Text.AlignHCenter
                 verticalAlignment: Text.AlignVCenter
-                color: (root.applyFilterColors && filterColor) ? filterColor : (controller.showLogColors && levelColor ? levelColor : root.logTextColor)
+                color: (controller.showLogColors && levelColor) ? levelColor : root.logTextColor
                 font.family: muktaVaani.font.family
                 font.pointSize: 10
                 font.bold: highlightAnimation.bolded
@@ -620,7 +626,7 @@ Item {
                 border.width: 0
                 anchors.fill: parent
                 z: -1
-                color: bookmarked ? root.logBookmarkRowColor : root.logRowColor
+                color: bookmarked ? root.logBookmarkRowColor : ((root.applyFilterColors && filterColor) ? root.filterBgColor(filterColor, 0.3) : root.logRowColor)
             }
 
             Rectangle {
