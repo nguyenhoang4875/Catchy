@@ -721,11 +721,16 @@ class Controller(QObject):
         self.isLoading = True
         self.showLoadingScreen = True
         if not append:
+            # Opening (not merging) a file wipes all state tied to the previous log,
+            # same as clearLog(), so stale selection/highlight/detail from the old
+            # file can't bleed into the newly opened one.
             self.logviewModel.updateData([])
             self._nextLineNum = 1
             self._trimmedOffset = 0
             self.bookmark.clearAll()
             self._openedFiles = []
+            self.highlightLineNum = -1
+            self.detailsText = ""
 
         self.worker = Worker(self._loadFileBatched, file_path)
         self.worker.batchLoaded.connect(self._onBatchLoaded)

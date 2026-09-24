@@ -368,6 +368,13 @@ Item {
         function onModelReset() {
             root.maxMessageTextWidth = 0
             root.pendingMaxMessageTextWidth = 0
+            // Drop selection/highlight left over from the previous log so it can't
+            // bleed into the new one (a coincidentally same-numbered row, stale copy...).
+            root.highlightLineNum = -1
+            root.selectedRows = ({})
+            root.lastColSelected = -1
+            root.firstColSelected = logHeaderModel.count
+            logView.selectionModel.clearSelection()
         }
     }
 
