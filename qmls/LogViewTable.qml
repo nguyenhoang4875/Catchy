@@ -82,10 +82,17 @@ Item {
         }
     }
 
-    function highlightLine(lineNum) {
+    // For a row that's already visible (user just tapped it) — the cells are already
+    // instantiated, so highlight them right away instead of waiting on the 300ms timer
+    // that scrollAndHighlight() needs to let an off-screen row scroll into view first.
+    function highlightLine(rowIdx, lineNum) {
         root.highlightLineNum = lineNum
-        highlightTimer.lineToHighlight = lineNum
-        highlightTimer.restart()
+        for (var i = 0; i < logHeaderModel.count; i++) {
+            let item = logview.itemAtIndex(logview.index(rowIdx, i))
+            if (item) {
+                item.highlight()
+            }
+        }
     }
 
     function scrollAndHighlight(lineNum) {
@@ -567,14 +574,14 @@ Item {
                         // Show log details and highlight line
                         controller.showLogDetails(lineNumber)
                         if (root.tableType === LogViewTable.TableType.ViewTable) {
-                            highlightLine(lineNumber)
+                            highlightLine(row, lineNumber)
                         } else {
                             root.highlightLineNum = lineNumber
                             controller.highlightLineNum = lineNumber
                         }
                     } else if (button === Qt.RightButton) {
                         if (root.tableType === LogViewTable.TableType.ViewTable) {
-                            highlightLine(lineNumber)
+                            highlightLine(row, lineNumber)
                         } else {
                             root.highlightLineNum = lineNumber
                             controller.highlightLineNum = lineNumber
@@ -633,7 +640,7 @@ Item {
                 border.width: 0
                 anchors.fill: parent
                 z: -1
-                color: bookmarked ? root.logBookmarkRowColor : ((root.applyFilterColors && filterColor) ? root.filterBgColor(filterColor, 0.3) : root.logRowColor)
+                color: bookmarked ? root.logBookmarkRowColor : ((root.applyFilterColors && filterColor) ? root.filterBgColor(filterColor, 0.4) : root.logRowColor)
             }
 
             Rectangle {

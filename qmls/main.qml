@@ -359,19 +359,29 @@ ApplicationWindow {
                 }
 
                 onTextEdited: {
-                    searchInput.historyHint = controller.getSearchHistoryHint(searchInput.text)
                     searchInput.showColoredText = false
-                    searchInput.updateFilteredHistory()
-                    if (searchHistoryPopup.visible && searchInput.filteredHistoryModel.length === 0) {
-                        searchHistoryPopup.close()
+                    // History search is opt-in via Ctrl+Space: only look up hints/history while the
+                    // popup it opens is actually visible, instead of on every keystroke unconditionally.
+                    if (searchHistoryPopup.visible) {
+                        searchInput.historyHint = controller.getSearchHistoryHint(searchInput.text)
+                        searchInput.updateFilteredHistory()
+                        if (searchInput.filteredHistoryModel.length === 0) {
+                            searchHistoryPopup.close()
+                        } else {
+                            historyIdleCloseTimer.restart()
+                        }
+                    } else {
+                        searchInput.historyHint = ""
                     }
                 }
 
                 Keys.onPressed: (event) => {
                     if (event.key === Qt.Key_Space && (event.modifiers & Qt.ControlModifier)) {
+                        searchInput.historyHint = controller.getSearchHistoryHint(searchInput.text)
                         searchInput.updateFilteredHistory()
                         if (searchInput.filteredHistoryModel.length > 0) {
                             searchHistoryPopup.open()
+                            historyIdleCloseTimer.restart()
                         }
                         event.accepted = true
                         return
@@ -383,6 +393,7 @@ ApplicationWindow {
                             historyListView.currentIndex = (historyListView.currentIndex + step + historyListView.count) % historyListView.count
                             historyListView.positionViewAtIndex(historyListView.currentIndex, ListView.Contain)
                         }
+                        historyIdleCloseTimer.restart()
                         event.accepted = true
                         return
                     }
@@ -431,6 +442,15 @@ ApplicationWindow {
                     }
                 }
 
+                // Auto-closes the history popup 3s after the last keystroke/navigation so it
+                // doesn't linger once the user has stopped interacting with it.
+                Timer {
+                    id: historyIdleCloseTimer
+                    interval: 3000
+                    repeat: false
+                    onTriggered: searchHistoryPopup.close()
+                }
+
                 // Shown on Ctrl+Space to pick a previous search query from searchLog.searchHistory.
                 Popup {
                     id: searchHistoryPopup
@@ -439,6 +459,7 @@ ApplicationWindow {
                     height: Math.min(200, historyListView.contentHeight + topPadding + bottomPadding)
                     padding: 4
                     closePolicy: Popup.CloseOnPressOutside | Popup.CloseOnEscape
+                    onClosed: historyIdleCloseTimer.stop()
 
                     background: Rectangle {
                         color: ({
@@ -902,15 +923,12 @@ ApplicationWindow {
         Connections {
             target: controller
             onLoadLogFileCompleted: {
-                delayTimer.restart()
-            }
-        }
-
-        Timer {
-            id: delayTimer
-            interval: 500
-            onTriggered: {
-                selectionRectangle.target = logviewTable.logview
+                // The TableView instance never changes after the first load, so this only
+                // needs to run once — re-running it (as a no-op) on every later load used to
+                // cost a needless fixed 500ms wait via a Timer for nothing.
+                if (selectionRectangle.target !== logviewTable.logview) {
+                    Qt.callLater(function() { selectionRectangle.target = logviewTable.logview })
+                }
             }
         }
 
