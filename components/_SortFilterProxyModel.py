@@ -7,6 +7,24 @@ import re
 _SEARCH_KEYS = ('message',)
 
 
+def _matches_search_terms(entry, regex_groups):
+    """OR-of-AND match: entry matches if ANY group's terms ALL match (each term
+    checked independently against the entry's searchable keys). '|' separates
+    groups (OR, lowest precedence), '&' separates terms within a group (AND)."""
+    for and_terms in regex_groups:
+        if all(_term_matches(entry, regex) for regex in and_terms):
+            return True
+    return False
+
+
+def _term_matches(entry, regex):
+    for key in _SEARCH_KEYS:
+        val = entry.get(key, '')
+        if val and regex.search(val):
+            return True
+    return False
+
+
 class SortFilterProxyModel(QAbstractTableModel):
     """Fast filtered table model using a precomputed index list.
 
@@ -22,7 +40,7 @@ class SortFilterProxyModel(QAbstractTableModel):
         self._filter_criteria = []
         self._compiled_criteria = []   # list of (tag_c, pid_c, tid_c) tuples
         self._regex_pattern = ''
-        self._py_regex = None
+        self._py_regex_list = []       # OR-groups of AND-terms compiled from _regex_pattern
         self._indices = []             # proxy_row → source_row
         self._source_rows = []         # exposed for search proxy fast access
 
@@ -82,14 +100,29 @@ class SortFilterProxyModel(QAbstractTableModel):
         if pattern == self._regex_pattern:
             return
         self._regex_pattern = pattern
-        if pattern:
-            try:
-                self._py_regex = re.compile(pattern, re.IGNORECASE | re.DOTALL)
-            except re.error:
-                self._py_regex = None
-        else:
-            self._py_regex = None
+        self._py_regex_list = self._compile_search_terms(pattern)
         self._rebuild()
+
+    @staticmethod
+    def _compile_search_terms(pattern):
+        """Parse 'A & B | C & D' as (A AND B) OR (C AND D): split on '|' into
+        OR-groups first, then each group on '&' into AND-terms (& binds tighter)."""
+        or_groups = pattern.split('|') if '|' in pattern else [pattern]
+        compiled_groups = []
+        for group in or_groups:
+            terms = group.split('&') if '&' in group else [group]
+            compiled_terms = []
+            for term in terms:
+                term = term.strip()
+                if not term:
+                    continue
+                try:
+                    compiled_terms.append(re.compile(term, re.IGNORECASE | re.DOTALL))
+                except re.error:
+                    continue
+            if compiled_terms:
+                compiled_groups.append(compiled_terms)
+        return compiled_groups
 
     @Property(int)
     def filterKeyColumn(self):
@@ -141,10 +174,10 @@ class SortFilterProxyModel(QAbstractTableModel):
     def _rebuild_from_data(self, log_data):
         """Filter LogModel data directly — fastest path."""
         criteria = self._compiled_criteria
-        py_regex = self._py_regex
+        regex_list = self._py_regex_list
         n = len(log_data)
 
-        if not criteria and py_regex is None:
+        if not criteria and not regex_list:
             self._indices = list(range(n))
             return
 
@@ -154,10 +187,10 @@ class SortFilterProxyModel(QAbstractTableModel):
         # Detect fast path: all criteria only check tag
         tag_only = criteria and all(p is None and t is None for _, p, t in criteria)
 
-        if tag_only and py_regex is None:
+        if tag_only and not regex_list:
             self._fast_tag_filter(log_data, n, criteria, indices, _append)
         else:
-            self._general_filter(log_data, n, criteria, py_regex, indices, _append)
+            self._general_filter(log_data, n, criteria, regex_list, indices, _append)
 
         self._indices = indices
 
@@ -207,8 +240,8 @@ class SortFilterProxyModel(QAbstractTableModel):
                     _append(i)
 
     @staticmethod
-    def _general_filter(log_data, n, criteria, py_regex, indices, _append):
-        """General filter loop: criteria + optional search regex."""
+    def _general_filter(log_data, n, criteria, regex_list, indices, _append):
+        """General filter loop: criteria + optional search regex (AND terms)."""
         has_criteria = bool(criteria)
         for i in range(n):
             entry = log_data[i]
@@ -243,22 +276,14 @@ class SortFilterProxyModel(QAbstractTableModel):
                 if not ok:
                     continue
 
-            if py_regex is not None:
-                _s = py_regex.search
-                found = False
-                for key in _SEARCH_KEYS:
-                    val = entry.get(key, '')
-                    if val and _s(val):
-                        found = True
-                        break
-                if not found:
-                    continue
+            if regex_list and not _matches_search_terms(entry, regex_list):
+                continue
 
             _append(i)
 
     def _rebuild_from_proxy(self):
         """Filter when source is another SortFilterProxyModel (search proxy)."""
-        py_regex = self._py_regex
+        regex_list = self._py_regex_list
         source = self._source
 
         # Access LogModel data through the proxy chain
@@ -266,7 +291,7 @@ class SortFilterProxyModel(QAbstractTableModel):
         log_data = getattr(inner, '_log_data', None) if inner else None
         parent_source_rows = getattr(source, '_source_rows', None)
 
-        if py_regex is None:
+        if not regex_list:
             # No search regex — accept all parent rows
             n = source.rowCount() if source else 0
             self._indices = list(range(n))
@@ -278,26 +303,19 @@ class SortFilterProxyModel(QAbstractTableModel):
             return
 
         indices = []
-        _search = py_regex.search
         _append = indices.append
 
         if parent_source_rows is not None:
             for i, src_row in enumerate(parent_source_rows):
                 if 0 <= src_row < len(log_data):
                     entry = log_data[src_row]
-                    for key in _SEARCH_KEYS:
-                        val = entry.get(key, '')
-                        if val and _search(val):
-                            _append(i)
-                            break
+                    if _matches_search_terms(entry, regex_list):
+                        _append(i)
         else:
             for i in range(len(log_data)):
                 entry = log_data[i]
-                for key in _SEARCH_KEYS:
-                    val = entry.get(key, '')
-                    if val and _search(val):
-                        _append(i)
-                        break
+                if _matches_search_terms(entry, regex_list):
+                    _append(i)
 
         self._indices = indices
 
@@ -306,8 +324,8 @@ class SortFilterProxyModel(QAbstractTableModel):
     def _accepts_row(self, source_row):
         """Check if a single source row passes all active filters."""
         criteria = self._compiled_criteria
-        py_regex = self._py_regex
-        if not criteria and py_regex is None:
+        regex_list = self._py_regex_list
+        if not criteria and not regex_list:
             return True
 
         entry = self._get_source_entry(source_row)
@@ -343,12 +361,8 @@ class SortFilterProxyModel(QAbstractTableModel):
             if not ok:
                 return False
 
-        if py_regex is not None:
-            for key in _SEARCH_KEYS:
-                val = entry.get(key, '')
-                if val and py_regex.search(val):
-                    return True
-            return False
+        if regex_list:
+            return _matches_search_terms(entry, regex_list)
 
         return True
 

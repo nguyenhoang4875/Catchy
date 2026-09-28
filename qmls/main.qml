@@ -307,26 +307,28 @@ ApplicationWindow {
                     return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
                 }
 
-                // Highlights each "|"-separated word with a background color using
-                // controller.getSearchWordColor, matching the same word's highlight in the
-                // search results table. Empty/whitespace-only segments don't consume a color
-                // index, mirroring SearchLog's filtering of searchWords on the Python side.
+                // Splits on "|" (OR, lowest precedence) into color groups, then each group on
+                // "&" (AND) into sub-words that share that group's color (matching SearchLog's
+                // grouping on the Python side), e.g. "A & B | C & D" -> A,B one color, C,D another.
                 function colorizeQuery(text) {
                     if (!text) return ""
-                    var words = text.split("|")
-                    var colored = []
-                    var colorIndex = 0
-                    for (var i = 0; i < words.length; i++) {
-                        var word = words[i]
-                        if (word.trim().length === 0) {
-                            colored.push(escapeHtml(word))
-                        } else {
-                            var color = controller.getSearchWordColor(colorIndex)
-                            colored.push("<span style='background-color: " + color + "'>" + escapeHtml(word) + "</span>")
-                            colorIndex++
+                    var orGroups = text.split("|")
+                    var coloredGroups = []
+                    for (var g = 0; g < orGroups.length; g++) {
+                        var words = orGroups[g].split("&")
+                        var color = controller.getSearchWordColor(g)
+                        var colored = []
+                        for (var i = 0; i < words.length; i++) {
+                            var word = words[i]
+                            if (word.trim().length === 0) {
+                                colored.push(escapeHtml(word))
+                            } else {
+                                colored.push("<span style='background-color: " + color + "'>" + escapeHtml(word) + "</span>")
+                            }
                         }
+                        coloredGroups.push(colored.join("&"))
                     }
-                    return colored.join("|")
+                    return coloredGroups.join("|")
                 }
 
                 // Keeps only history entries that contain the current query anywhere, so the

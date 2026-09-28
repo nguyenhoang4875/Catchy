@@ -14,6 +14,7 @@ class SearchLog(QObject):
         super().__init__(parent)
         self._searchRegex = QRegularExpression(R"", QRegularExpression.CaseInsensitiveOption | QRegularExpression.DotMatchesEverythingOption)
         self._searchWords = []
+        self._wordGroupIndices = []    # per-word AND-group index, for shared highlight color
         self._compiledWords = []
         self._showSearchResults = False
         self._previousSearchQuery = ""
@@ -41,8 +42,20 @@ class SearchLog(QObject):
     @searchRegex.setter
     def searchRegex(self, pattern):
         self._searchRegex.setPattern(pattern)
-        # Tách các từ khóa bằng dấu |
-        self._searchWords = [word.strip() for word in pattern.split('|') if word.strip()]
+        # '|' (OR, lowest precedence) splits into color groups; '&' (AND) within a
+        # group splits into sub-terms that share that group's color, e.g. in
+        # "A & B | C & D" -> A,B share one color and C,D share another.
+        or_groups = pattern.split('|') if '|' in pattern else [pattern]
+        words = []
+        group_indices = []
+        for group_idx, group in enumerate(or_groups):
+            for word in group.split('&'):
+                word = word.strip()
+                if word:
+                    words.append(word)
+                    group_indices.append(group_idx)
+        self._searchWords = words
+        self._wordGroupIndices = group_indices
         self._rebuildCompiledWords()
         self.searchRegexChanged.emit()
         self.searchWordsChanged.emit()
@@ -51,9 +64,9 @@ class SearchLog(QObject):
         """Precompile (regex, color) pairs once per query so per-row highlighting
         doesn't recompile a regex for every visible cell on every scroll frame."""
         compiled = []
-        for i, word in enumerate(self._searchWords):
+        for word, group_idx in zip(self._searchWords, self._wordGroupIndices):
             try:
-                compiled.append((re.compile(re.escape(word), re.IGNORECASE), self.getColorForIndex(i)))
+                compiled.append((re.compile(re.escape(word), re.IGNORECASE), self.getColorForIndex(group_idx)))
             except re.error:
                 continue
         self._compiledWords = compiled
