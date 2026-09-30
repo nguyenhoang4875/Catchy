@@ -152,7 +152,7 @@ def verify_clean(path):
         for shape in slide.shapes:
             if shape.has_text_frame:
                 text = shape.text_frame.text
-                for old in stale:
+                 for old in stale:
                     if old.lower() in text.lower():
                         bad_strings.append(old)
     print(f"Remaining bad phrases: {len(bad_strings)}")
